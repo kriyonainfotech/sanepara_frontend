@@ -40,7 +40,7 @@ export default function FirmSettings() {
             <Field label="Email"><Input type="email" value={f.email} onChange={set('email')} /></Field>
             <Field label="GSTIN"><Input value={f.gstNumber} onChange={set('gstNumber')} className="uppercase" /></Field>
             <div />
-            <Field label="UPI ID" hint="e.g. sanepara@okaxis"><Input value={f.upiId} onChange={set('upiId')} /></Field>
+            <Field label="UPI ID" hint="e.g. sanepara@okaxis"><Input noCapitalize value={f.upiId} onChange={set('upiId')} /></Field>
             <Field label="UPI payee name"><Input value={f.upiName} onChange={set('upiName')} placeholder={f.name} /></Field>
             <Field label="Invoice terms / footer" className="sm:col-span-2"><Textarea rows={3} value={f.invoiceTerms} onChange={set('invoiceTerms')} /></Field>
             <div className="sm:col-span-2"><Button type="submit" loading={saving}>Save</Button></div>

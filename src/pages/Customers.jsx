@@ -16,6 +16,12 @@ import ImportCustomersModal from '../components/ImportCustomersModal';
 
 const NO_FILTERS = { service: '', gst: '', addedBy: '', from: '', to: '' };
 
+function ReferredBy({ c }) {
+  const p = c.referredByPartner;
+  if (p) return <>{p.name}{p.firmName ? ` — ${p.firmName}` : ''} <span className="ml-1 rounded bg-indigo-50 px-1.5 py-0.5 text-[10px] font-medium text-indigo-600">B2B</span></>;
+  return c.referredBy || <span className="text-zinc-400">—</span>;
+}
+
 export default function Customers() {
   const navigate = useNavigate();
   const { can } = useAuth();
@@ -118,6 +124,7 @@ export default function Customers() {
                     <div className="rounded-lg bg-zinc-50 px-3 py-2"><div className="text-[10px] font-semibold uppercase text-zinc-400">Mobile</div><div className="tabular-nums text-zinc-700">{c.phone}</div></div>
                     <div className="rounded-lg bg-zinc-50 px-3 py-2"><div className="text-[10px] font-semibold uppercase text-zinc-400">GST number</div><div className="truncate font-mono text-zinc-700">{c.gstNumber || <span className="font-sans text-zinc-400">—</span>}</div></div>
                   </div>
+                  {(c.referredByPartner || c.referredBy) && <div className="mt-2 text-xs text-zinc-500">Referred by <ReferredBy c={c} /></div>}
                   <div className="mt-2 flex justify-between text-xs text-zinc-500"><span>by {c.addedBy?.name || '—'}</span><span>{formatDate(c.createdAt)}</span></div>
                 </div>
               ))}
@@ -129,6 +136,7 @@ export default function Customers() {
                     <th className="px-5 py-2.5 font-medium">Business</th>
                     <th className="px-5 py-2.5 font-medium">Mobile</th>
                     <th className="px-5 py-2.5 font-medium">GST number</th>
+                    <th className="px-5 py-2.5 font-medium">Referred by</th>
                     <th className="px-5 py-2.5 font-medium">Added by</th>
                     <th className="px-5 py-2.5 font-medium">Added on</th>
                   </tr>
@@ -147,6 +155,7 @@ export default function Customers() {
                       </td>
                       <td className="px-5 py-3 tabular-nums text-zinc-700">{c.phone}</td>
                       <td className="px-5 py-3 font-mono text-xs text-zinc-700">{c.gstNumber || <span className="font-sans text-zinc-400">—</span>}</td>
+                      <td className="px-5 py-3 text-zinc-700"><ReferredBy c={c} /></td>
                       <td className="px-5 py-3 text-zinc-700">{c.addedBy?.name || '—'}</td>
                       <td className="px-5 py-3 text-zinc-500">{formatDate(c.createdAt)}</td>
                     </tr>

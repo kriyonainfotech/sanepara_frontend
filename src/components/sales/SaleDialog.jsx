@@ -33,12 +33,12 @@ export default function SaleDialog({ open, onClose, onSaved, sale, preset }) {
         ? {
             customer: sale.customer?._id || sale.customer, customerService: sale.customerService || '', title: sale.title,
             professionalFee: sale.professionalFee, govtFee: sale.govtFee, saleDate: sale.saleDate,
-            soldBy: sale.soldBy?._id || sale.soldBy || '', b2bPartner: sale.b2bPartner?._id || sale.b2bPartner || '', b2bPercent: sale.b2bPercent ?? '', notes: sale.notes || '',
+            soldBy: sale.soldBy?._id || sale.soldBy || '', b2bPartner: sale.b2bPartner?._id || sale.b2bPartner || '', b2bPercent: sale.b2bPercent ?? '', referredBy: sale.referredBy || '', referralAmount: sale.referralAmount || '', notes: sale.notes || '',
           }
         : {
             customer: preset?.customer || '', customerService: preset?.customerService || '', title: preset?.title || '',
             professionalFee: preset?.professionalFee ?? '', govtFee: '', saleDate: localToday(), soldBy: user._id,
-            b2bPartner: '', b2bPercent: '', notes: '', receivedNow: '', receivedMode: 'Cash',
+            b2bPartner: '', b2bPercent: '', referredBy: '', referralAmount: '', notes: '', receivedNow: '', receivedMode: 'Cash',
           }
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -64,7 +64,7 @@ export default function SaleDialog({ open, onClose, onSaved, sale, preset }) {
     e.preventDefault();
     setSaving(true);
     try {
-      const payload = { ...f, professionalFee: Number(f.professionalFee) || 0, govtFee: Number(f.govtFee) || 0 };
+      const payload = { ...f, professionalFee: Number(f.professionalFee) || 0, govtFee: Number(f.govtFee) || 0, referralAmount: f.referredBy?.trim() ? Number(f.referralAmount) || 0 : 0 };
       const { data } = editing ? await api.put(`/sales/${sale._id}`, payload) : await api.post('/sales', payload);
       toast.success(data.message);
       onSaved?.(data.data);
@@ -133,6 +133,10 @@ export default function SaleDialog({ open, onClose, onSaved, sale, preset }) {
             <Field label="Partner %"><Input type="number" min="0" max="100" step="any" disabled={!f.b2bPartner} value={f.b2bPercent ?? ''} onChange={(e) => set('b2bPercent', e.target.value)} /></Field>
           </div>
           {f.b2bPartner && <p className="mt-2 text-xs text-zinc-500">Partner commission: <b>{formatMoney(commission)}</b> ({f.b2bPercent || 0}% of professional fee)</p>}
+          <div className="mt-4 grid gap-4 sm:grid-cols-2">
+            <Field label="Referred by (person)"><Input value={f.referredBy || ''} onChange={(e) => set('referredBy', e.target.value)} placeholder="Name, if a person referred it" /></Field>
+            <Field label="Amount for referral person (₹)"><Input type="number" min="0" step="any" disabled={!f.referredBy?.trim()} value={f.referralAmount ?? ''} onChange={(e) => set('referralAmount', e.target.value)} /></Field>
+          </div>
         </div>
 
         {!editing && (

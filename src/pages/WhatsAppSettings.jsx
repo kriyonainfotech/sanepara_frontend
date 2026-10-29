@@ -71,7 +71,7 @@ export default function WhatsAppSettings() {
               </Field>
               <div />
               <Field label="Endpoint URL" required className="sm:col-span-2" hint={f.provider === 'meta' ? 'Replace PHONE_NUMBER_ID with your number ID from Meta' : 'The send-message URL from the provider'}>
-                <Input value={f.endpoint} onChange={set('endpoint')} placeholder="https://..." />
+                <Input noCapitalize value={f.endpoint} onChange={set('endpoint')} placeholder="https://..." />
               </Field>
               <Field label="API key / token" required className="sm:col-span-2" hint={f.hasKey ? `Saved key ${f.apiKeyMasked} — leave blank to keep it` : 'Not set yet'}>
                 <Input type="password" autoComplete="off" value={f.apiKey} onChange={set('apiKey')} placeholder={f.hasKey ? 'Enter a new key to replace' : 'Paste the key'} />
@@ -83,17 +83,17 @@ export default function WhatsAppSettings() {
                 </Select>
               </Field>
               {f.authType === 'query' ? (
-                <Field label="URL parameter name"><Input value={f.authParam} onChange={set('authParam')} placeholder="token" /></Field>
+                <Field label="URL parameter name"><Input noCapitalize value={f.authParam} onChange={set('authParam')} placeholder="token" /></Field>
               ) : <div />}
               <Field label="Wrap message in key" hint="InstantBroadcast: messageObject · Meta: leave blank">
-                <Input value={f.wrapKey} onChange={set('wrapKey')} placeholder="(none)" />
+                <Input noCapitalize value={f.wrapKey} onChange={set('wrapKey')} placeholder="(none)" />
               </Field>
               <div />
               <Field label="Approved template name" hint="Needed for customers who haven't messaged you in 24 hours. Blank = plain text">
-                <Input value={f.templateName} onChange={set('templateName')} placeholder="e.g. gst_bill_reminder" />
+                <Input noCapitalize value={f.templateName} onChange={set('templateName')} placeholder="e.g. gst_bill_reminder" />
               </Field>
               <Field label="Template language" hint="e.g. en, en_US, hi, gu">
-                <Input value={f.templateLang} onChange={set('templateLang')} />
+                <Input noCapitalize value={f.templateLang} onChange={set('templateLang')} />
               </Field>
               <p className="text-xs text-zinc-500 sm:col-span-2">Template variables: {'{{1}}'} customer name · {'{{2}}'} pending bills · {'{{3}}'} bill month</p>
               <div className="sm:col-span-2"><Button type="submit" loading={saving}>Save</Button></div>

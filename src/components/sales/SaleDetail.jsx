@@ -62,6 +62,7 @@ export default function SaleDetail({ saleId, onClose, onChanged }) {
               <span>Govt fee covered <b>{formatMoney(s.govtReceived)}</b> / {formatMoney(s.govtFee)}</span>
               {s.soldBy && <span>Sold by <b>{s.soldBy.name}</b></span>}
               {s.b2bPartner && <span>Partner <b>{s.b2bPartner.name}</b> {s.b2bPercent}% = <b>{formatMoney(s.b2bCommission)}</b></span>}
+              {s.referredBy && <span>Referred by <b>{s.referredBy}</b>{s.referralAmount > 0 && <> = <b>{formatMoney(s.referralAmount)}</b></>}</span>}
             </div>
             {s.notes && <p className="rounded-lg bg-zinc-50 p-3 text-sm text-zinc-600">{s.notes}</p>}
 

@@ -155,7 +155,7 @@ export default function Reminders() {
               <EmptyState icon={BellRing} title="No running GST customers" message="Customers added in Running GST Filing show up here every month."
                 action={can('gst_filing') && <Link to="/gst-filing"><Button variant="secondary">Go to Running GST Filing</Button></Link>} />
             ) : rows.length === 0 ? (
-              <p className="py-12 text-center text-sm text-zinc-400">{tab === 'pending' ? 'Everyone has sent their bills. 🎉' : 'Nothing here.'}</p>
+              <p className="py-12 text-center text-sm text-zinc-400">{tab === 'pending' ? 'Everyone has sent their bills.' : 'Nothing here.'}</p>
             ) : (
               <>
               {/* Phones & tablets: cards */}

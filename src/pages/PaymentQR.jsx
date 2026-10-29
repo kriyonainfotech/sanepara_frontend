@@ -38,7 +38,7 @@ export default function PaymentQR() {
         <Card className="p-6">
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="UPI ID" required hint={f.upiId && !valid ? 'Looks incomplete — e.g. name@okaxis' : 'Default comes from Settings → Firm Details'}>
-              <Input value={f.upiId} onChange={set('upiId')} placeholder="yourname@bank" />
+              <Input noCapitalize value={f.upiId} onChange={set('upiId')} placeholder="yourname@bank" />
             </Field>
             <Field label="Payee name"><Input value={f.name} onChange={set('name')} placeholder="Shown in the payer's app" /></Field>
             <Field label="Amount (₹)" required>

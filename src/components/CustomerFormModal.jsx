@@ -5,18 +5,32 @@ import Button from './ui/Button';
 import { Field, Input, Textarea } from './ui/Field';
 import { api, errorMessage } from '../lib/api';
 
-const EMPTY = { businessName: '', contactPerson: '', phone: '', email: '', gstNumber: '', address: '', notes: '' };
+const EMPTY = { businessName: '', contactPerson: '', phone: '', email: '', gstNumber: '', address: '', referredBy: '', referredByPartner: '', notes: '' };
+const partnerLabel = (p) => `${p.name}${p.firmName ? ` — ${p.firmName}` : ''}`;
 const GST_RE = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/;
 
 export default function CustomerFormModal({ open, onClose, customer, onSaved }) {
   const [form, setForm] = useState(EMPTY);
   const [saving, setSaving] = useState(false);
+  const [partners, setPartners] = useState([]);
+  const [refOpen, setRefOpen] = useState(false); // B2B partner suggestions under "Referred by"
 
   useEffect(() => {
-    if (open) setForm(customer ? { ...EMPTY, ...customer } : EMPTY);
+    if (!open) return;
+    const partner = customer?.referredByPartner;
+    setForm(customer ? { ...EMPTY, ...customer, referredByPartner: partner?._id || '', referredBy: partner?._id ? partnerLabel(partner) : customer.referredBy || '' } : EMPTY);
+    api.get('/b2b/options').then((r) => setPartners(r.data.data)).catch(() => setPartners([]));
   }, [open, customer]);
 
+  // Keep an inactive partner already linked to this customer visible in the list.
+  const linked = customer?.referredByPartner;
+  const partnerOptions = linked?._id && !partners.some((p) => p._id === linked._id) ? [...partners, linked] : partners;
+
   const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
+
+  // Typing a name unlinks any partner; picking a suggestion links that B2B partner.
+  const refQuery = form.referredByPartner ? '' : form.referredBy.trim().toLowerCase();
+  const refMatches = partnerOptions.filter((p) => partnerLabel(p).toLowerCase().includes(refQuery));
 
   const submit = async (e) => {
     e.preventDefault();
@@ -26,7 +40,11 @@ export default function CustomerFormModal({ open, onClose, customer, onSaved }) 
 
     setSaving(true);
     try {
-      const payload = { ...form, gstNumber: gst };
+      const payload = {
+        ...form,
+        gstNumber: gst,
+        referredBy: form.referredByPartner ? '' : form.referredBy,
+      };
       const { data } = customer
         ? await api.put(`/customers/${customer._id}`, payload)
         : await api.post('/customers', payload);
@@ -78,6 +96,33 @@ export default function CustomerFormModal({ open, onClose, customer, onSaved }) 
         </Field>
         <Field label="Email">
           <Input type="email" value={form.email} onChange={set('email')} />
+        </Field>
+        <Field label="Referred by" hint={form.referredByPartner ? 'B2B partner' : undefined}>
+          <div className="relative">
+            <Input
+              value={form.referredBy}
+              onChange={(e) => { setForm({ ...form, referredBy: e.target.value, referredByPartner: '' }); setRefOpen(true); }}
+              onFocus={() => setRefOpen(true)}
+              onBlur={() => setRefOpen(false)}
+              placeholder="Type a name or pick a B2B partner"
+              autoComplete="off"
+            />
+            {refOpen && refMatches.length > 0 && (
+              <div className="absolute z-20 mt-1 max-h-48 w-full overflow-auto rounded-lg border border-zinc-200 bg-white py-1 shadow-lg">
+                <div className="px-3 py-1 text-[11px] font-medium uppercase tracking-wide text-zinc-400">B2B partners</div>
+                {refMatches.map((p) => (
+                  <button
+                    key={p._id}
+                    type="button"
+                    onMouseDown={(e) => { e.preventDefault(); setForm({ ...form, referredBy: partnerLabel(p), referredByPartner: p._id }); setRefOpen(false); }}
+                    className={`block w-full px-3 py-1.5 text-left text-sm hover:bg-zinc-50 ${form.referredByPartner === p._id ? 'font-medium text-zinc-900' : 'text-zinc-700'}`}
+                  >
+                    {partnerLabel(p)}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </Field>
         <Field label="Address" className="sm:col-span-2">
           <Textarea rows={2} value={form.address} onChange={set('address')} />

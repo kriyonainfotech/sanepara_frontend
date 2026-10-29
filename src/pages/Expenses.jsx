@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
-import { CalendarCheck, Pencil, Plus, Receipt, Trash2, TriangleAlert, Wallet } from 'lucide-react';
+import { CalendarCheck, CalendarRange, Hash, Pencil, Plus, Receipt, Trash2, TriangleAlert, Wallet } from 'lucide-react';
 import { api, errorMessage } from '../lib/api';
 import { useAuth } from '../context/AuthContext';
-import { formatMoney, localToday, longDay } from '../lib/format';
+import { formatMoney, localToday, longDay, monthLabel } from '../lib/format';
 import { PAY_MODES } from '../lib/sales';
 import PageHeader from '../components/PageHeader';
 import StatCard from '../components/StatCard';
@@ -84,21 +84,43 @@ function ExpenseDialog({ open, expense, accounts, onClose, onSaved }) {
 
 export default function Expenses() {
   const { can } = useAuth();
+  // Period shown: today, a month, a year or a date range.
+  const [period, setPeriod] = useState('month');
   const [month, setMonth] = useState(localToday().slice(0, 7));
+  const [range, setRange] = useState({ from: `${localToday().slice(0, 7)}-01`, to: localToday() });
   const [account, setAccount] = useState('');
   const [data, setData] = useState(null);
+  const [year, setYear] = useState(localToday().slice(0, 4));
+  const [monthly, setMonthly] = useState(null);
   const [editing, setEditing] = useState(undefined);
   const [deleting, setDeleting] = useState(null);
   const [removing, setRemoving] = useState(false);
 
-  const load = useCallback(() => api.get('/expenses', { params: { month } }).then((r) => setData(r.data)), [month]);
+  const loadMonthly = useCallback(() => api.get('/expenses/monthly', { params: { year } }).then((r) => setMonthly(r.data.data)).catch(() => setMonthly([])), [year]);
+  const params = period === 'today' ? { from: localToday(), to: localToday() }
+    : period === 'year' ? { year }
+    : period === 'range' ? (range.from && range.to ? range : null)
+    : { month };
+  const paramsKey = JSON.stringify(params);
+  const load = useCallback(() => {
+    loadMonthly();
+    if (params) api.get('/expenses', { params }).then((r) => setData(r.data));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [paramsKey, loadMonthly]);
   useEffect(() => { load(); }, [load]);
+  const years = Array.from({ length: 5 }, (_, i) => String(Number(localToday().slice(0, 4)) - i));
 
   // An expense saved on a date in another month: jump to that month so it is visible.
   const onSaved = (date) => {
-    if (date && date.slice(0, 7) !== month) setMonth(date.slice(0, 7));
+    if (period === 'month' && date && date.slice(0, 7) !== month) setMonth(date.slice(0, 7));
     else load();
   };
+  const showMonth = (m) => { setPeriod('month'); setMonth(m); };
+
+  const periodTitle = period === 'today' ? 'Today'
+    : period === 'year' ? `Year ${year}`
+    : period === 'range' ? (data ? `${longDay(data.from)} – ${longDay(data.to)}` : 'Date range')
+    : monthLabel(month);
 
   const remove = async () => {
     setRemoving(true);
@@ -121,23 +143,46 @@ export default function Expenses() {
     <div>
       <PageHeader title="Expenses" description="Office expenses by account. Each day's expense limit is what is left of net business after saving (see Collection)."
         actions={<>
-          <div className="w-44"><Input type="month" value={month} onChange={(e) => e.target.value && setMonth(e.target.value)} /></div>
+          <div className="flex rounded-lg border border-zinc-200 bg-white p-0.5">
+            {[['today', 'Today'], ['month', 'Month'], ['year', 'Year'], ['range', 'Date range']].map(([k, label]) => (
+              <button key={k} onClick={() => setPeriod(k)} className={`rounded-md px-2.5 py-1 text-xs font-medium ${period === k ? 'bg-zinc-900 text-white' : 'text-zinc-600 hover:bg-zinc-50'}`}>{label}</button>
+            ))}
+          </div>
+          {period === 'month' && <div className="w-44"><Input type="month" value={month} max={localToday().slice(0, 7)} onChange={(e) => e.target.value && setMonth(e.target.value)} /></div>}
+          {period === 'year' && <div className="w-28"><Select value={year} onChange={(e) => setYear(e.target.value)}>{years.map((y) => <option key={y}>{y}</option>)}</Select></div>}
+          {period === 'range' && (
+            <div className="flex items-center gap-1 text-xs text-zinc-500">
+              <Input type="date" value={range.from} max={range.to || localToday()} onChange={(e) => setRange({ ...range, from: e.target.value })} className="w-auto!" />
+              <span>to</span>
+              <Input type="date" value={range.to} min={range.from || undefined} max={localToday()} onChange={(e) => setRange({ ...range, to: e.target.value })} className="w-auto!" />
+            </div>
+          )}
           {can('expenses', 'create') && <Button icon={Plus} onClick={() => setEditing(null)}>Add Expense</Button>}
         </>} />
       {!data ? <Spinner /> : (
         <>
+          <div className="mb-2 text-xs font-medium uppercase tracking-wide text-zinc-400">{periodTitle}</div>
           <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <StatCard label="Spent this month" value={formatMoney(data.stats.total)} icon={Receipt} tone="rose" sub={`${data.stats.count} entr${data.stats.count === 1 ? 'y' : 'ies'}`} />
+            <StatCard label="Expenses" value={data.period.count} icon={Hash} tone="zinc" sub={`entr${data.period.count === 1 ? 'y' : 'ies'}`} />
+            <StatCard label="Limit" value={formatMoney(data.period.limit)} icon={CalendarRange} tone="zinc" sub="Net business − saving" />
+            <StatCard label="Spent" value={formatMoney(data.period.spent)} icon={Receipt} tone="rose" />
+            <StatCard label="Remaining" value={formatMoney(data.period.remaining)} icon={Wallet} tone={data.period.remaining < 0 ? 'rose' : 'green'}
+              valueClass={data.period.remaining < 0 ? 'text-rose-600' : ''} sub={data.period.remaining < 0 ? 'Over the limit (allowed)' : undefined} />
+          </div>
+          {period !== 'today' && <>
+          <div className="mb-2 text-xs font-medium uppercase tracking-wide text-zinc-400">Today</div>
+          <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-3">
             <StatCard label="Today's limit" value={formatMoney(today.limit)} icon={CalendarCheck} tone="zinc" sub="Net business − saving" />
             <StatCard label="Spent today" value={formatMoney(today.spent)} icon={Wallet} tone="amber" />
             <StatCard label="Remaining today" value={formatMoney(today.remaining)} icon={Wallet} tone={today.remaining < 0 ? 'rose' : 'green'}
               valueClass={today.remaining < 0 ? 'text-rose-600' : ''} sub={today.remaining < 0 ? 'Over the limit (allowed)' : undefined} />
           </div>
+          </>}
           {top.length > 0 && (
             <div className="mb-4 flex flex-wrap gap-2">
-              <button onClick={() => setAccount('')} className={`rounded-lg border px-3 py-1.5 text-xs font-medium ${!account ? 'border-zinc-900 bg-zinc-900 text-white' : 'border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50'}`}>All accounts</button>
+              <button onClick={() => setAccount('')} className={`rounded-md border px-2 py-1 text-[11px] font-medium ${!account ? 'border-zinc-900 bg-zinc-900 text-white' : 'border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50'}`}>All accounts</button>
               {top.map(([a, amt]) => (
-                <button key={a} onClick={() => setAccount(a === account ? '' : a)} className={`rounded-lg border px-3 py-1.5 text-xs font-medium ${account === a ? 'border-zinc-900 bg-zinc-900 text-white' : 'border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50'}`}>
+                <button key={a} onClick={() => setAccount(a === account ? '' : a)} className={`rounded-md border px-2 py-1 text-[11px] font-medium ${account === a ? 'border-zinc-900 bg-zinc-900 text-white' : 'border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50'}`}>
                   {a} · {formatMoney(amt)}
                 </button>
               ))}
@@ -196,6 +241,41 @@ export default function Expenses() {
                 </tbody>
               </table></div>
               </>
+            )}
+          </Card>
+
+          <Card className="mt-5 overflow-hidden">
+            <div className="flex items-center justify-between gap-3 border-b border-zinc-100 px-5 py-3">
+              <h2 className="text-sm font-semibold">Month-wise expenses</h2>
+              <div className="w-28"><Select value={year} onChange={(e) => setYear(e.target.value)}>{years.map((y) => <option key={y}>{y}</option>)}</Select></div>
+            </div>
+            {!monthly ? <Spinner /> : monthly.length === 0 ? (
+              <div className="px-5 py-8 text-center text-sm text-zinc-500">No months to show for {year}.</div>
+            ) : (
+              <div className="overflow-x-auto"><table className="w-full min-w-[560px] text-sm">
+                <thead><tr className="border-b border-zinc-100 bg-zinc-50/70 text-left text-xs text-zinc-500">
+                  <th className="px-5 py-2.5 font-medium">Month</th><th className="px-3 py-2.5 text-right font-medium">Entries</th>
+                  <th className="px-3 py-2.5 text-right font-medium">Limit</th><th className="px-3 py-2.5 text-right font-medium">Spent</th><th className="px-5 py-2.5 text-right font-medium">Remaining</th>
+                </tr></thead>
+                <tbody className="divide-y divide-zinc-100">
+                  {monthly.map((m) => (
+                    <tr key={m.month} onClick={() => showMonth(m.month)} className={`cursor-pointer hover:bg-zinc-50/60 ${period === 'month' && m.month === month ? 'bg-zinc-50' : ''}`}>
+                      <td className="px-5 py-3 font-medium">{monthLabel(m.month)}</td>
+                      <td className="px-3 py-3 text-right tabular-nums">{m.count}</td>
+                      <td className="px-3 py-3 text-right tabular-nums">{formatMoney(m.limit)}</td>
+                      <td className="px-3 py-3 text-right font-semibold tabular-nums">{formatMoney(m.spent)}</td>
+                      <td className={`px-5 py-3 text-right tabular-nums ${m.remaining < 0 ? 'text-rose-600' : 'text-emerald-600'}`}>{formatMoney(m.remaining)}{m.remaining < 0 && <span className="ml-1 text-xs">(over)</span>}</td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot><tr className="border-t border-zinc-200 bg-zinc-50/70 font-semibold">
+                  <td className="px-5 py-3">Total {year}</td>
+                  <td className="px-3 py-3 text-right tabular-nums">{monthly.reduce((a, m) => a + m.count, 0)}</td>
+                  <td className="px-3 py-3 text-right tabular-nums">{formatMoney(monthly.reduce((a, m) => a + m.limit, 0))}</td>
+                  <td className="px-3 py-3 text-right tabular-nums">{formatMoney(monthly.reduce((a, m) => a + m.spent, 0))}</td>
+                  <td className="px-5 py-3 text-right tabular-nums">{formatMoney(monthly.reduce((a, m) => a + m.remaining, 0))}</td>
+                </tr></tfoot>
+              </table></div>
             )}
           </Card>
         </>
