@@ -34,12 +34,26 @@ export default function SaleDetail({ saleId, onClose, onChanged }) {
     }
   };
 
+  const removeSale = async () => {
+    if (!window.confirm(`Delete sale ${s.saleNo}? This cannot be undone.`)) return;
+    try {
+      const r = await api.delete(`/sales/${saleId}`);
+      toast.success(r.data.message);
+      onChanged?.();
+      onClose();
+    } catch (e) {
+      toast.error(errorMessage(e));
+    }
+  };
+
   const s = data?.data;
   return (
     <>
       <Modal open={!!saleId} onClose={onClose} size="lg" title={s ? `Sale ${s.saleNo}` : 'Sale'} description={s && `${s.customer?.businessName} · ${longDay(s.saleDate)}`} footer={s && (
         <>
-          {can('sales', 'edit') && <Button variant="secondary" icon={Pencil} onClick={() => setEditing(true)} className="mr-auto">Edit</Button>}
+          {can('sales', 'edit') && <Button variant="secondary" icon={Pencil} onClick={() => setEditing(true)}>Edit</Button>}
+          {can('sales', 'delete') && <Button variant="secondary" icon={Trash2} onClick={removeSale} className="hover:!text-red-600">Delete</Button>}
+          <span className="mr-auto" />
           <Button variant="secondary" onClick={onClose}>Close</Button>
           {canCollect && s.balance > 0 && <Button icon={IndianRupee} onClick={() => setCollecting(true)}>Record Payment</Button>}
         </>

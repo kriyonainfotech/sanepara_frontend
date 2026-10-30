@@ -20,9 +20,81 @@ export default function PaymentQR() {
   const valid = isUpiId(f.upiId);
   const amount = Number(f.amount) > 0 ? Number(f.amount) : 0;
 
-  const download = () => {
+  // Branded "Scan & Pay" card to send to clients: SANEPARA logo, QR, amount to pay, UPI ID.
+  const download = async () => {
+    const img = new Image();
+    img.src = qr.url;
+    await img.decode();
+
+    const W = 600, Q = 420, font = 'Inter, Arial, sans-serif';
+    const note = f.note.trim();
+    const H = 890 + (note ? 30 : 0);
+    const c = document.createElement('canvas');
+    c.width = W;
+    c.height = H;
+    const ctx = c.getContext('2d');
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, W, H);
+    ctx.textBaseline = 'middle';
+
+    // Logo: dark "S" tile + firm name (same as the sidebar brand)
+    const logoX = W / 2 - 120, logoY = 36;
+    ctx.fillStyle = '#18181b';
+    ctx.beginPath();
+    ctx.roundRect(logoX, logoY, 60, 60, 14);
+    ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.textAlign = 'center';
+    ctx.font = `700 30px ${font}`;
+    ctx.fillText('S', logoX + 30, logoY + 32);
+    ctx.textAlign = 'left';
+    ctx.fillStyle = '#18181b';
+    ctx.font = `700 26px ${font}`;
+    ctx.fillText('SANEPARA', logoX + 76, logoY + 20);
+    ctx.fillStyle = '#a1a1aa';
+    ctx.font = `600 14px ${font}`;
+    ctx.letterSpacing = '3px';
+    ctx.fillText('AND COMPANY', logoX + 76, logoY + 46);
+    ctx.letterSpacing = '0px';
+
+    // "Scan & Pay" heading
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#2554e8';
+    ctx.font = `700 28px ${font}`;
+    ctx.fillText('Scan & Pay', W / 2, 140);
+
+    // QR inside a light border
+    const qx = (W - Q) / 2, qy = 186;
+    ctx.strokeStyle = '#e4e4e7';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.roundRect(qx - 16, qy - 16, Q + 32, Q + 32, 24);
+    ctx.stroke();
+    ctx.drawImage(img, qx, qy, Q, Q);
+
+    // Amount to pay, payee, UPI ID, note
+    let y = qy + Q + 56;
+    ctx.fillStyle = '#71717a';
+    ctx.font = `500 18px ${font}`;
+    ctx.fillText('Amount to pay', W / 2, y);
+    y += 44;
+    ctx.fillStyle = '#18181b';
+    ctx.font = `700 48px ${font}`;
+    ctx.fillText(formatMoney(amount), W / 2, y);
+    y += 52;
+    ctx.fillStyle = '#3f3f46';
+    ctx.font = `600 20px ${font}`;
+    ctx.fillText(`Pay to: ${f.name.trim() || 'SANEPARA AND COMPANY'}`, W / 2, y);
+    y += 32;
+    ctx.fillText(`UPI ID: ${f.upiId.trim()}`, W / 2, y);
+    if (note) { y += 30; ctx.fillStyle = '#71717a'; ctx.font = `400 18px ${font}`; ctx.fillText(note, W / 2, y); }
+    y += 50;
+    ctx.fillStyle = '#a1a1aa';
+    ctx.font = `400 16px ${font}`;
+    ctx.fillText('Pay using GPay, PhonePe, Paytm, BHIM or any UPI app', W / 2, y);
+
     const a = document.createElement('a');
-    a.href = qr.url;
+    a.href = c.toDataURL('image/png');
     a.download = `UPI-QR-${amount || 'any'}.png`;
     a.click();
   };
