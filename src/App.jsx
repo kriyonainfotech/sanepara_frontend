@@ -23,6 +23,7 @@ import Reminders from './pages/Reminders';
 import Compliance from './pages/Compliance';
 import Collection from './pages/Collection';
 import Expenses from './pages/Expenses';
+import Banks from './pages/Banks';
 import Invoices from './pages/Invoices';
 import PaymentQR from './pages/PaymentQR';
 import Incentives from './pages/Incentives';
@@ -72,6 +73,7 @@ export default function App() {
         <Route path="compliance" element={<Protected item={navItem('/compliance')}><Compliance /></Protected>} />
         <Route path="collection" element={<Protected item={navItem('/collection')}><Collection /></Protected>} />
         <Route path="expenses" element={<Protected item={navItem('/expenses')}><Expenses /></Protected>} />
+        <Route path="banks" element={<Protected item={navItem('/banks')}><Banks /></Protected>} />
         <Route path="invoices" element={<Protected item={navItem('/invoices')}><Invoices /></Protected>} />
         <Route path="payment-qr" element={<Protected item={navItem('/payment-qr')}><PaymentQR /></Protected>} />
         <Route path="incentives" element={<Incentives />} />

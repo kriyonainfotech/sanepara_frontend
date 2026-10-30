@@ -8,6 +8,7 @@ import Modal from '../ui/Modal';
 import Button from '../ui/Button';
 import { Field, Input, Select, Textarea } from '../ui/Field';
 import SearchSelect from '../tasks/SearchSelect';
+import BankSelect from '../BankSelect';
 
 /**
  * Create / edit a sale. `preset` can fix the customer and pre-pick an assigned
@@ -38,7 +39,7 @@ export default function SaleDialog({ open, onClose, onSaved, sale, preset }) {
         : {
             customer: preset?.customer || '', customerService: preset?.customerService || '', title: preset?.title || '',
             professionalFee: preset?.professionalFee ?? '', govtFee: '', saleDate: localToday(), soldBy: user._id,
-            b2bPartner: '', b2bPercent: '', referredBy: '', referralAmount: '', notes: '', receivedNow: '', receivedMode: 'Cash',
+            b2bPartner: '', b2bPercent: '', referredBy: '', referralAmount: '', notes: '', receivedNow: '', receivedMode: 'Cash', receivedBank: '',
           }
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -145,6 +146,7 @@ export default function SaleDialog({ open, onClose, onSaved, sale, preset }) {
             <Field label="Mode">
               <Select value={f.receivedMode} onChange={(e) => set('receivedMode', e.target.value)} disabled={!Number(f.receivedNow)}>{PAY_MODES.map((m) => <option key={m}>{m}</option>)}</Select>
             </Field>
+            <BankSelect label="Received in" value={f.receivedBank} onChange={(v) => set('receivedBank', v)} disabled={!Number(f.receivedNow)} className="sm:col-span-2" />
           </div>
         )}
         <Field label="Notes"><Textarea rows={2} value={f.notes || ''} onChange={(e) => set('notes', e.target.value)} /></Field>

@@ -184,7 +184,7 @@ function PaymentsTab({ month, refreshKey, onOpen }) {
                 </div>
                 <div className="mt-1 truncate text-xs text-zinc-500"><span className="font-mono">{p.sale?.saleNo}</span> · {p.sale?.title}</div>
                 <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-zinc-500">
-                  <Badge>{p.mode}</Badge>{p.reference && <span className="text-zinc-400">{p.reference}</span>}
+                  <Badge>{p.mode}</Badge>{p.bank && <Badge tone="blue">{p.bank.name}</Badge>}{p.reference && <span className="text-zinc-400">{p.reference}</span>}
                   <span className="ml-auto tabular-nums">Govt {formatMoney(p.govtPart)} · Prof. {formatMoney(p.professionalPart)}</span>
                 </div>
               </div>
@@ -201,7 +201,7 @@ function PaymentsTab({ month, refreshKey, onOpen }) {
                   <td className="whitespace-nowrap px-4 py-2.5">{longDay(p.date)}</td>
                   <td className="px-4 py-2.5 font-medium">{p.customer?.businessName}</td>
                   <td className="px-4 py-2.5 text-xs text-zinc-500"><span className="font-mono">{p.sale?.saleNo}</span> · {p.sale?.title}</td>
-                  <td className="px-3 py-2.5"><Badge>{p.mode}</Badge>{p.reference && <div className="text-[11px] text-zinc-400">{p.reference}</div>}</td>
+                  <td className="px-3 py-2.5"><Badge>{p.mode}</Badge>{p.bank && <div className="text-[11px] text-zinc-500">{p.bank.name}</div>}{p.reference && <div className="text-[11px] text-zinc-400">{p.reference}</div>}</td>
                   <td className="px-3 py-2.5 text-right font-semibold tabular-nums">{formatMoney(p.amount)}{p.discount > 0 && <div className="text-[11px] font-normal text-zinc-400">+{formatMoney(p.discount)} disc.</div>}</td>
                   <td className="px-3 py-2.5 text-right tabular-nums text-zinc-500">{formatMoney(p.govtPart)}</td>
                   <td className="px-4 py-2.5 text-right tabular-nums">{formatMoney(p.professionalPart)}</td>

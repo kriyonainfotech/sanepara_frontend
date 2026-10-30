@@ -15,6 +15,7 @@ import Avatar from '../components/ui/Avatar';
 import EmptyState from '../components/ui/EmptyState';
 import ConfirmDialog from '../components/ui/ConfirmDialog';
 import { Field, Input, Select, Textarea } from '../components/ui/Field';
+import BankSelect from '../components/BankSelect';
 
 const EMPTY = { name: '', firmName: '', phone: '', email: '', percentage: '', notes: '', isActive: true };
 
@@ -75,7 +76,7 @@ function PartnerDialog({ partner, open, onClose, onSaved }) {
 function PayoutDialog({ partner, onClose, onDone }) {
   const [f, setF] = useState({});
   const [saving, setSaving] = useState(false);
-  useEffect(() => { if (partner) setF({ amount: partner.pending || '', paidOn: localToday(), mode: 'Bank', note: '' }); }, [partner]);
+  useEffect(() => { if (partner) setF({ amount: partner.pending || '', paidOn: localToday(), mode: 'Bank', bank: '', note: '' }); }, [partner]);
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
   const submit = async (e) => {
     e.preventDefault();
@@ -100,6 +101,7 @@ function PayoutDialog({ partner, onClose, onDone }) {
           <Field label="Paid on"><Input type="date" value={f.paidOn} onChange={set('paidOn')} /></Field>
           <Field label="Mode"><Select value={f.mode} onChange={set('mode')}>{PAY_MODES.map((m) => <option key={m}>{m}</option>)}</Select></Field>
         </div>
+        <BankSelect label="Paid from" value={f.bank} onChange={(v) => setF({ ...f, bank: v })} />
         <Field label="Note"><Input value={f.note} onChange={set('note')} /></Field>
       </form>
     </Modal>
@@ -176,6 +178,7 @@ function PartnerDetail({ partnerId, month, onClose, canEdit, onChanged }) {
                 {data.payouts.map((p) => (
                   <li key={p._id} className="flex items-center gap-3 px-3 py-2 text-sm">
                     <span className="w-24 shrink-0 text-xs text-zinc-500 sm:w-36 sm:text-sm">{longDay(p.paidOn)}</span><Badge>{p.mode}</Badge>
+                    {p.bank && <span className="hidden text-xs text-zinc-500 sm:inline">{p.bank.name}</span>}
                     <span className="flex-1 truncate text-zinc-500">{p.note}</span>
                     <span className="font-semibold tabular-nums">{formatMoney(p.amount)}</span>
                     {canEdit && <button onClick={() => removePayout(p._id)} className="rounded p-1 text-zinc-400 hover:text-red-600"><Trash2 className="h-3.5 w-3.5" /></button>}

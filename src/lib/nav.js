@@ -1,7 +1,7 @@
 import {
   LayoutDashboard, Users, Layers, CalendarClock, ListChecks, FileCheck2, BellRing,
   TrendingUp, Handshake, Wallet, Receipt, FileText, QrCode, UserCog, Clock,
-  IndianRupee, Gift, BookOpen, BookCheck, Scale, ScrollText, ShieldCheck, MessageCircle, NotebookPen, CalendarDays, FileText as FileCheck, BarChart3, Building2, CalendarCheck,
+  IndianRupee, Gift, BookOpen, BookCheck, Scale, ScrollText, ShieldCheck, MessageCircle, NotebookPen, CalendarDays, FileText as FileCheck, BarChart3, Building2, CalendarCheck, Landmark,
 } from 'lucide-react';
 
 // `ready: false` items render a "Soon" tag and a placeholder page until built.
@@ -40,6 +40,7 @@ export const NAV = [
       { to: '/b2b', label: 'B2B Partners', icon: Handshake, ready: true, perm: ['b2b', 'view'] },
       { to: '/collection', label: 'Collection', icon: Wallet, ready: true, perm: ['collection', 'view'] },
       { to: '/expenses', label: 'Expenses', icon: Receipt, ready: true, perm: ['expenses', 'view'] },
+      { to: '/banks', label: 'Bank & Cash', icon: Landmark, ready: true, perm: ['banks', 'view'] },
       { to: '/invoices', label: 'Invoices', icon: FileText, ready: true, perm: ['invoices', 'view'] },
       { to: '/payment-qr', label: 'Payment QR', icon: QrCode, ready: true, perm: ['payment_qr', 'use'] },
     ],

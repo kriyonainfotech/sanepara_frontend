@@ -15,6 +15,7 @@ import Modal from '../components/ui/Modal';
 import Spinner from '../components/ui/Spinner';
 import { Field, Input, Select } from '../components/ui/Field';
 import LogsModal from '../components/attendance/LogsModal';
+import BankSelect from '../components/BankSelect';
 
 function Summary({ label, value, icon: Icon, tone, sub }) {
   const tones = { zinc: 'bg-zinc-100 text-zinc-700', green: 'bg-emerald-50 text-emerald-600', blue: 'bg-blue-50 text-blue-600', amber: 'bg-amber-50 text-amber-600' };
@@ -31,7 +32,7 @@ function PayDialog({ row, month, onClose, onDone }) {
   const [form, setForm] = useState({});
   const [saving, setSaving] = useState(false);
   useEffect(() => {
-    if (row) setForm({ amount: row.balance || '', paidOn: localToday(), mode: 'Bank', note: '' });
+    if (row) setForm({ amount: row.balance || '', paidOn: localToday(), mode: 'Bank', bank: '', note: '' });
   }, [row]);
 
   const submit = async (e) => {
@@ -67,6 +68,7 @@ function PayDialog({ row, month, onClose, onDone }) {
               <Select value={form.mode} onChange={set('mode')}>{['Bank', 'UPI', 'Cash', 'Cheque'].map((m) => <option key={m}>{m}</option>)}</Select>
             </Field>
             <Field label="Note"><Input value={form.note} onChange={set('note')} placeholder="Optional" /></Field>
+            <BankSelect label="Paid from" value={form.bank} onChange={(v) => setForm({ ...form, bank: v })} className="sm:col-span-2" />
           </div>
         </form>
       )}
@@ -240,6 +242,7 @@ export default function Payroll() {
                     <span className="w-24 shrink-0 text-xs text-zinc-500 sm:w-36 sm:text-sm">{longDay(p.paidOn)}</span>
                     <span className="min-w-0 flex-1 truncate font-medium">{p.user?.name}</span>
                     <Badge>{p.mode}</Badge>
+                    {p.bank && <span className="hidden text-xs text-zinc-500 sm:inline">{p.bank.name}</span>}
                     <span className="hidden flex-1 truncate text-zinc-500 md:block">{p.note}</span>
                     <span className="shrink-0 text-right font-semibold tabular-nums sm:w-24">{formatMoney(p.amount)}</span>
                     {canPay && <button onClick={() => removePayment(p._id)} className="rounded p-1 text-zinc-400 hover:text-red-600"><Trash2 className="h-3.5 w-3.5" /></button>}

@@ -15,13 +15,14 @@ import Spinner from '../components/ui/Spinner';
 import EmptyState from '../components/ui/EmptyState';
 import ConfirmDialog from '../components/ui/ConfirmDialog';
 import { Field, Input, Select } from '../components/ui/Field';
+import BankSelect from '../components/BankSelect';
 
 function ExpenseDialog({ open, expense, accounts, onClose, onSaved }) {
   const [f, setF] = useState({});
   const [day, setDay] = useState(null);
   const [saving, setSaving] = useState(false);
   useEffect(() => {
-    if (open) setF(expense ? { date: expense.date, account: expense.account, amount: expense.amount, mode: expense.mode, paidTo: expense.paidTo || '', note: expense.note || '' } : { date: localToday(), account: accounts[0] || '', amount: '', mode: 'Cash', paidTo: '', note: '' });
+    if (open) setF(expense ? { date: expense.date, account: expense.account, amount: expense.amount, mode: expense.mode, bank: expense.bank?._id || expense.bank || '', paidTo: expense.paidTo || '', note: expense.note || '' } : { date: localToday(), account: accounts[0] || '', amount: '', mode: 'Cash', bank: '', paidTo: '', note: '' });
   }, [open, expense, accounts]);
   // Limit and spending of the picked date (any date, not just today).
   useEffect(() => {
@@ -69,6 +70,7 @@ function ExpenseDialog({ open, expense, accounts, onClose, onSaved }) {
           <datalist id="expense-accounts">{accounts.map((a) => <option key={a} value={a} />)}</datalist>
         </Field>
         <Field label="Mode"><Select value={f.mode} onChange={set('mode')}>{PAY_MODES.map((m) => <option key={m}>{m}</option>)}</Select></Field>
+        <BankSelect label="Paid from" value={f.bank} onChange={(v) => setF({ ...f, bank: v })} />
         <Field label="Paid to"><Input maxLength={100} value={f.paidTo} onChange={set('paidTo')} /></Field>
         <Field label="Note"><Input maxLength={300} value={f.note} onChange={set('note')} /></Field>
         {over > 0 && (
@@ -91,22 +93,19 @@ export default function Expenses() {
   const [account, setAccount] = useState('');
   const [data, setData] = useState(null);
   const [year, setYear] = useState(localToday().slice(0, 4));
-  const [monthly, setMonthly] = useState(null);
   const [editing, setEditing] = useState(undefined);
   const [deleting, setDeleting] = useState(null);
   const [removing, setRemoving] = useState(false);
 
-  const loadMonthly = useCallback(() => api.get('/expenses/monthly', { params: { year } }).then((r) => setMonthly(r.data.data)).catch(() => setMonthly([])), [year]);
   const params = period === 'today' ? { from: localToday(), to: localToday() }
     : period === 'year' ? { year }
     : period === 'range' ? (range.from && range.to ? range : null)
     : { month };
   const paramsKey = JSON.stringify(params);
   const load = useCallback(() => {
-    loadMonthly();
     if (params) api.get('/expenses', { params }).then((r) => setData(r.data));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [paramsKey, loadMonthly]);
+  }, [paramsKey]);
   useEffect(() => { load(); }, [load]);
   const years = Array.from({ length: 5 }, (_, i) => String(Number(localToday().slice(0, 4)) - i));
 
@@ -115,7 +114,6 @@ export default function Expenses() {
     if (period === 'month' && date && date.slice(0, 7) !== month) setMonth(date.slice(0, 7));
     else load();
   };
-  const showMonth = (m) => { setPeriod('month'); setMonth(m); };
 
   const periodTitle = period === 'today' ? 'Today'
     : period === 'year' ? `Year ${year}`
@@ -138,6 +136,8 @@ export default function Expenses() {
   const today = data?.today;
   const top = Object.entries(data?.stats.byAccount || {}).sort((a, b) => b[1] - a[1]);
   const rows = (data?.data || []).filter((e) => !account || e.account === account);
+  const rowsTotal = rows.reduce((a, e) => a + e.amount, 0);
+  const chip = (on) => `rounded-full border px-2.5 py-1 text-[11px] font-medium transition ${on ? 'border-zinc-900 bg-zinc-900 text-white' : 'border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50'}`;
 
   return (
     <div>
@@ -178,17 +178,22 @@ export default function Expenses() {
               valueClass={today.remaining < 0 ? 'text-rose-600' : ''} sub={today.remaining < 0 ? 'Over the limit (allowed)' : undefined} />
           </div>
           </>}
-          {top.length > 0 && (
-            <div className="mb-4 flex flex-wrap gap-2">
-              <button onClick={() => setAccount('')} className={`rounded-md border px-2 py-1 text-[11px] font-medium ${!account ? 'border-zinc-900 bg-zinc-900 text-white' : 'border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50'}`}>All accounts</button>
-              {top.map(([a, amt]) => (
-                <button key={a} onClick={() => setAccount(a === account ? '' : a)} className={`rounded-md border px-2 py-1 text-[11px] font-medium ${account === a ? 'border-zinc-900 bg-zinc-900 text-white' : 'border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50'}`}>
-                  {a} · {formatMoney(amt)}
-                </button>
-              ))}
-            </div>
-          )}
           <Card className="overflow-hidden">
+            {/* Which entries: the period picked at the top + an optional category. */}
+            <div className="border-b border-zinc-100 px-5 py-3.5">
+              <div className="flex flex-wrap items-baseline justify-between gap-2">
+                <h2 className="text-sm font-semibold">Expense entries <span className="font-normal text-zinc-500">· {periodTitle}{account ? ` · ${account}` : ''}</span></h2>
+                <div className="text-sm text-zinc-500">{rows.length} {rows.length === 1 ? 'entry' : 'entries'} · <span className="font-semibold tabular-nums text-zinc-900">{formatMoney(rowsTotal)}</span></div>
+              </div>
+              {top.length > 1 && (
+                <div className="mt-3 flex flex-wrap gap-1.5">
+                  <button onClick={() => setAccount('')} className={chip(!account)}>All</button>
+                  {top.map(([a, amt]) => (
+                    <button key={a} onClick={() => setAccount(a === account ? '' : a)} className={chip(account === a)}>{a} <span className="opacity-60">{formatMoney(amt)}</span></button>
+                  ))}
+                </div>
+              )}
+            </div>
             {rows.length === 0 ? (
               <EmptyState icon={Receipt} title="No expenses" message="Expenses you add show up here and in the Collection sheet." action={can('expenses', 'create') && <Button icon={Plus} onClick={() => setEditing(null)}>Add Expense</Button>} />
             ) : (
@@ -204,7 +209,7 @@ export default function Expenses() {
                       </div>
                       <span className="shrink-0 text-lg font-semibold tabular-nums">{formatMoney(e.amount)}</span>
                     </div>
-                    <div className="mt-2 flex flex-wrap gap-1.5"><Badge tone="violet">{e.account}</Badge><Badge>{e.mode}</Badge></div>
+                    <div className="mt-2 flex flex-wrap gap-1.5"><Badge tone="violet">{e.account}</Badge><Badge>{e.mode}</Badge>{e.bank && <Badge tone="blue">{e.bank.name}</Badge>}</div>
                     {(e.note || e.createdBy?.name) && <div className="mt-2 text-xs text-zinc-500">{e.note}{e.createdBy?.name ? `${e.note ? ' · ' : ''}by ${e.createdBy.name}` : ''}</div>}
                     {(can('expenses', 'edit') || can('expenses', 'delete')) && (
                       <div className="mt-auto flex justify-end gap-1 pt-2">
@@ -217,65 +222,44 @@ export default function Expenses() {
               </div>
 
               {/* Laptop and up: table */}
-              <div className="hidden overflow-x-auto lg:block"><table className="w-full min-w-[640px] text-sm">
+              <div className="hidden overflow-x-auto lg:block"><table className="w-full min-w-[760px] text-sm">
                 <thead><tr className="border-b border-zinc-100 bg-zinc-50/70 text-left text-xs text-zinc-500">
-                  <th className="px-5 py-2.5 font-medium">Date</th><th className="px-3 py-2.5 font-medium">Account</th><th className="px-3 py-2.5 font-medium">Paid to / Note</th>
-                  <th className="px-3 py-2.5 font-medium">Mode</th><th className="px-3 py-2.5 text-right font-medium">Amount</th><th className="px-5 py-2.5" />
+                  <th className="px-5 py-2.5 font-medium">Date</th>
+                  <th className="px-3 py-2.5 font-medium">Category</th>
+                  <th className="px-3 py-2.5 font-medium">Paid to</th>
+                  <th className="px-3 py-2.5 font-medium">Paid from</th>
+                  <th className="px-3 py-2.5 font-medium">Mode</th>
+                  <th className="px-3 py-2.5 text-right font-medium">Amount</th>
+                  <th className="w-24 px-5 py-2.5" />
                 </tr></thead>
                 <tbody className="divide-y divide-zinc-100">
                   {rows.map((e) => (
-                    <tr key={e._id} className="hover:bg-zinc-50/60">
-                      <td className="whitespace-nowrap px-5 py-3">{longDay(e.date)}</td>
+                    <tr key={e._id} className="group hover:bg-zinc-50/60">
+                      <td className="whitespace-nowrap px-5 py-3 text-zinc-600">{longDay(e.date)}</td>
                       <td className="px-3 py-3"><Badge tone="violet">{e.account}</Badge></td>
-                      <td className="px-3 py-3"><div>{e.paidTo || <span className="text-zinc-400">—</span>}</div><div className="text-xs text-zinc-500">{e.note}{e.createdBy?.name ? ` · by ${e.createdBy.name}` : ''}</div></td>
+                      <td className="max-w-xs px-3 py-3">
+                        <div className="truncate">{e.paidTo || <span className="text-zinc-400">—</span>}</div>
+                        {(e.note || e.createdBy?.name) && <div className="truncate text-xs text-zinc-400">{[e.note, e.createdBy?.name && `by ${e.createdBy.name}`].filter(Boolean).join(' · ')}</div>}
+                      </td>
+                      <td className="whitespace-nowrap px-3 py-3 text-zinc-600">{e.bank?.name || <span className="text-zinc-400">—</span>}</td>
                       <td className="px-3 py-3"><Badge>{e.mode}</Badge></td>
-                      <td className="px-3 py-3 text-right font-semibold tabular-nums">{formatMoney(e.amount)}</td>
-                      <td className="px-5 py-3">
-                        <div className="flex justify-end gap-1">
-                          {can('expenses', 'edit') && <Button size="icon" variant="ghost" onClick={() => setEditing(e)}><Pencil className="h-4 w-4" /></Button>}
-                          {can('expenses', 'delete') && <Button size="icon" variant="ghost" onClick={() => setDeleting(e)} className="hover:!text-red-600"><Trash2 className="h-4 w-4" /></Button>}
+                      <td className="whitespace-nowrap px-3 py-3 text-right font-semibold tabular-nums">{formatMoney(e.amount)}</td>
+                      <td className="px-5 py-1.5">
+                        <div className="flex justify-end gap-0.5 opacity-60 transition group-hover:opacity-100">
+                          {can('expenses', 'edit') && <Button size="icon" variant="ghost" onClick={() => setEditing(e)}><Pencil className="h-3.5 w-3.5" /></Button>}
+                          {can('expenses', 'delete') && <Button size="icon" variant="ghost" onClick={() => setDeleting(e)} className="hover:!text-red-600"><Trash2 className="h-3.5 w-3.5" /></Button>}
                         </div>
                       </td>
                     </tr>
                   ))}
                 </tbody>
-              </table></div>
-              </>
-            )}
-          </Card>
-
-          <Card className="mt-5 overflow-hidden">
-            <div className="flex items-center justify-between gap-3 border-b border-zinc-100 px-5 py-3">
-              <h2 className="text-sm font-semibold">Month-wise expenses</h2>
-              <div className="w-28"><Select value={year} onChange={(e) => setYear(e.target.value)}>{years.map((y) => <option key={y}>{y}</option>)}</Select></div>
-            </div>
-            {!monthly ? <Spinner /> : monthly.length === 0 ? (
-              <div className="px-5 py-8 text-center text-sm text-zinc-500">No months to show for {year}.</div>
-            ) : (
-              <div className="overflow-x-auto"><table className="w-full min-w-[560px] text-sm">
-                <thead><tr className="border-b border-zinc-100 bg-zinc-50/70 text-left text-xs text-zinc-500">
-                  <th className="px-5 py-2.5 font-medium">Month</th><th className="px-3 py-2.5 text-right font-medium">Entries</th>
-                  <th className="px-3 py-2.5 text-right font-medium">Limit</th><th className="px-3 py-2.5 text-right font-medium">Spent</th><th className="px-5 py-2.5 text-right font-medium">Remaining</th>
-                </tr></thead>
-                <tbody className="divide-y divide-zinc-100">
-                  {monthly.map((m) => (
-                    <tr key={m.month} onClick={() => showMonth(m.month)} className={`cursor-pointer hover:bg-zinc-50/60 ${period === 'month' && m.month === month ? 'bg-zinc-50' : ''}`}>
-                      <td className="px-5 py-3 font-medium">{monthLabel(m.month)}</td>
-                      <td className="px-3 py-3 text-right tabular-nums">{m.count}</td>
-                      <td className="px-3 py-3 text-right tabular-nums">{formatMoney(m.limit)}</td>
-                      <td className="px-3 py-3 text-right font-semibold tabular-nums">{formatMoney(m.spent)}</td>
-                      <td className={`px-5 py-3 text-right tabular-nums ${m.remaining < 0 ? 'text-rose-600' : 'text-emerald-600'}`}>{formatMoney(m.remaining)}{m.remaining < 0 && <span className="ml-1 text-xs">(over)</span>}</td>
-                    </tr>
-                  ))}
-                </tbody>
                 <tfoot><tr className="border-t border-zinc-200 bg-zinc-50/70 font-semibold">
-                  <td className="px-5 py-3">Total {year}</td>
-                  <td className="px-3 py-3 text-right tabular-nums">{monthly.reduce((a, m) => a + m.count, 0)}</td>
-                  <td className="px-3 py-3 text-right tabular-nums">{formatMoney(monthly.reduce((a, m) => a + m.limit, 0))}</td>
-                  <td className="px-3 py-3 text-right tabular-nums">{formatMoney(monthly.reduce((a, m) => a + m.spent, 0))}</td>
-                  <td className="px-5 py-3 text-right tabular-nums">{formatMoney(monthly.reduce((a, m) => a + m.remaining, 0))}</td>
+                  <td className="px-5 py-3" colSpan={5}>Total · {rows.length} {rows.length === 1 ? 'entry' : 'entries'}</td>
+                  <td className="px-3 py-3 text-right tabular-nums">{formatMoney(rowsTotal)}</td>
+                  <td />
                 </tr></tfoot>
               </table></div>
+              </>
             )}
           </Card>
         </>

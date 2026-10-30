@@ -6,12 +6,13 @@ import { PAY_MODES } from '../../lib/sales';
 import Modal from '../ui/Modal';
 import Button from '../ui/Button';
 import { Field, Input, Select } from '../ui/Field';
+import BankSelect from '../BankSelect';
 
 export default function CollectDialog({ sale, onClose, onDone }) {
   const [f, setF] = useState({});
   const [saving, setSaving] = useState(false);
   useEffect(() => {
-    if (sale) setF({ amount: sale.balance, discount: '', date: localToday(), mode: 'Cash', reference: '', note: '' });
+    if (sale) setF({ amount: sale.balance, discount: '', date: localToday(), mode: 'Cash', bank: '', reference: '', note: '' });
   }, [sale]);
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
 
@@ -49,6 +50,7 @@ export default function CollectDialog({ sale, onClose, onDone }) {
             <Field label="Discount / write-off (₹)" hint="Waived — reduces what they owe"><Input type="number" min="0" step="any" value={f.discount} onChange={set('discount')} placeholder="0" /></Field>
             <Field label="Date"><Input type="date" max={localToday()} value={f.date} onChange={set('date')} /></Field>
             <Field label="Mode"><Select value={f.mode} onChange={set('mode')}>{PAY_MODES.map((m) => <option key={m}>{m}</option>)}</Select></Field>
+            <BankSelect label="Received in" value={f.bank} onChange={(v) => setF({ ...f, bank: v })} disabled={!Number(f.amount)} />
             <Field label="Reference" hint="UTR / cheque no."><Input value={f.reference} onChange={set('reference')} /></Field>
             <Field label="Note"><Input value={f.note} onChange={set('note')} /></Field>
           </div>

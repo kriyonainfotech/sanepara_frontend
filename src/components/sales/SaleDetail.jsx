@@ -87,6 +87,7 @@ export default function SaleDetail({ saleId, onClose, onChanged }) {
                       </div>
                       <div className="mt-1.5 flex items-center gap-2 text-xs text-zinc-500">
                         <Badge>{p.mode}</Badge>
+                        {p.bank && <Badge tone="blue">{p.bank.name}</Badge>}
                         <span className="tabular-nums">Govt {formatMoney(p.govtPart)} / Prof. {formatMoney(p.professionalPart)}</span>
                         {canCollect && <button onClick={() => removePayment(p)} className="ml-auto rounded p-1 text-zinc-400 hover:text-red-600"><Trash2 className="h-3.5 w-3.5" /></button>}
                       </div>
@@ -102,7 +103,7 @@ export default function SaleDetail({ saleId, onClose, onChanged }) {
                       {data.payments.map((p) => (
                         <tr key={p._id}>
                           <td className="px-3 py-2">{longDay(p.date)}<div className="text-xs text-zinc-400">{[p.reference, p.note, p.receivedBy?.name && `by ${p.receivedBy.name}`].filter(Boolean).join(' · ')}</div></td>
-                          <td className="px-3 py-2"><Badge>{p.mode}</Badge></td>
+                          <td className="px-3 py-2"><Badge>{p.mode}</Badge>{p.bank && <div className="mt-0.5 text-[11px] text-zinc-500">{p.bank.name}</div>}</td>
                           <td className="px-3 py-2 text-right tabular-nums">{formatMoney(p.amount)}{p.discount > 0 && <div className="text-xs text-zinc-400">+{formatMoney(p.discount)} discount</div>}</td>
                           <td className="px-3 py-2 text-right text-xs tabular-nums text-zinc-500">{formatMoney(p.govtPart)} / {formatMoney(p.professionalPart)}</td>
                           <td className="px-3 py-2 text-right">{canCollect && <button onClick={() => removePayment(p)} className="rounded p-1 text-zinc-400 hover:text-red-600"><Trash2 className="h-3.5 w-3.5" /></button>}</td>
