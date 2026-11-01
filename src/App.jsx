@@ -19,6 +19,7 @@ import Payroll from './pages/Payroll';
 import Sales from './pages/Sales';
 import B2B from './pages/B2B';
 import GstFiling from './pages/GstFiling';
+import GstReturns from './pages/GstReturns';
 import Reminders from './pages/Reminders';
 import Compliance from './pages/Compliance';
 import Collection from './pages/Collection';
@@ -69,6 +70,7 @@ export default function App() {
         <Route path="settings/permissions" element={<Protected item={navItem('/settings/permissions')}><Permissions /></Protected>} />
         <Route path="reports" element={<Protected item={navItem('/reports')}><Reports /></Protected>} />
         <Route path="gst-filing" element={<Protected item={navItem('/gst-filing')}><GstFiling /></Protected>} />
+        <Route path="gst-returns" element={<Protected item={navItem('/gst-returns')}><GstReturns /></Protected>} />
         <Route path="reminders" element={<Protected item={navItem('/reminders')}><Reminders /></Protected>} />
         <Route path="compliance" element={<Protected item={navItem('/compliance')}><Compliance /></Protected>} />
         <Route path="collection" element={<Protected item={navItem('/collection')}><Collection /></Protected>} />

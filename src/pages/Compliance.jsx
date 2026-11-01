@@ -22,6 +22,8 @@ import { DueBadge, DueRow, styleOf } from '../components/compliance/DueRow';
 import { Field, Input, Select, Textarea } from '../components/ui/Field';
 
 const REPEAT = { none: 'One time', monthly: 'Every month', quarterly: 'Every quarter', yearly: 'Every year' };
+// GST work period ('YYYY-MM' / 'YYYY-Qn') → month to open the GST Return Tracker on.
+const trackerMonth = (p) => (p.includes('Q') ? `${p.slice(0, 4)}-${String(Number(p.slice(-1)) * 3).padStart(2, '0')}` : p);
 
 function ItemDialog({ open, item, categories, onClose, onSaved }) {
   const [f, setF] = useState({});
@@ -121,13 +123,13 @@ function DetailDialog({ o, today, canManage, onClose, onChanged, onEdit, onDelet
           <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3">
             <div className="flex items-center justify-between text-xs text-zinc-500">
               <span>Applies to {o.customers} running customer{o.customers === 1 ? '' : 's'} ({o.appliesTo.join(', ')})</span>
-              <Link to="/gst-filing" className="font-medium text-zinc-700 hover:underline">Running GST Filing</Link>
+              <Link to={o.step && o.workPeriod ? `/gst-returns?month=${trackerMonth(o.workPeriod)}` : '/gst-filing'} className="font-medium text-zinc-700 hover:underline">{o.step ? 'GST Return Tracker' : 'Running GST Filing'}</Link>
             </div>
             {o.progress ? (
               <div className="mt-2">
-                <div className="mb-1 text-xs text-zinc-500">Monthly GST work for {o.period}</div>
+                <div className="mb-1 text-xs text-zinc-500">{o.step ? `${o.title} filed for ${o.period}` : `Monthly GST work for ${o.period}`}</div>
                 <Progress done={o.progress.completed} total={o.progress.total} />
-                {o.autoDone && <div className="mt-1 text-xs text-emerald-700">All GST work for this period is complete.</div>}
+                {o.autoDone && <div className="mt-1 text-xs text-emerald-700">{o.step ? `${o.title} is filed for every customer.` : 'All GST work for this period is complete.'}</div>}
               </div>
             ) : o.workPeriod && (
               <div className="mt-1 text-xs text-zinc-400">No monthly GST work was created for {o.period}.</div>

@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
-import { CalendarCog, FileCheck2, History, Pause, Pencil, Play, Plus, Search, Settings2, Trash2, WandSparkles } from 'lucide-react';
+import { CalendarCog, Copy, Eye, EyeOff, FileCheck2, History, KeyRound, Pause, Pencil, Play, Plus, Search, Settings2, Trash2, WandSparkles } from 'lucide-react';
 import { api, errorMessage } from '../lib/api';
 import { useAuth } from '../context/AuthContext';
 import { localToday, longDay } from '../lib/format';
+import { gstLabel, stateOf } from '../lib/gst';
 import PageHeader from '../components/PageHeader';
 import StatCard from '../components/StatCard';
 import Card from '../components/ui/Card';
@@ -22,6 +23,18 @@ import { Field, Input, Select, Textarea } from '../components/ui/Field';
 
 const RETURN_TYPES = ['Monthly', 'Quarterly (QRMP)', 'Composition'];
 const ACTION_TONE = { Started: 'blue', Stopped: 'red', Resumed: 'green' };
+const filingKey = (customerId, gstNumber) => `${customerId}|${gstNumber || ''}`;
+
+// GSTIN and firm name of a filing.
+function GstCell({ g }) {
+  if (!g.gstNumber) return <span className="font-sans text-zinc-400">GSTIN not added</span>;
+  return (
+    <>
+      <div className="font-mono">{g.gstNumber}</div>
+      <div className="font-sans text-[11px] text-zinc-500">{[g.firmName, stateOf(g.gstNumber)].filter(Boolean).join(' · ')}</div>
+    </>
+  );
+}
 
 function FilingDialog({ open, filing, existing, onClose, onSaved }) {
   const [customers, setCustomers] = useState([]);
@@ -29,7 +42,7 @@ function FilingDialog({ open, filing, existing, onClose, onSaved }) {
   const [saving, setSaving] = useState(false);
   useEffect(() => {
     if (!open) return;
-    setF(filing ? { returnType: filing.returnType, notes: filing.notes || '' } : { customer: 'all', returnType: 'Monthly', startedOn: localToday(), notes: '' });
+    setF(filing ? { returnType: filing.returnType, notes: filing.notes || '' } : { customer: 'all', gstNumber: '', returnType: 'Monthly', startedOn: localToday(), notes: '' });
     if (!filing) api.get('/customers/options').then((r) => setCustomers(r.data.data));
   }, [open, filing]);
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
@@ -48,23 +61,40 @@ function FilingDialog({ open, filing, existing, onClose, onSaved }) {
       setSaving(false);
     }
   };
-  const options = customers.filter((c) => !existing.has(c._id)).map((c) => ({ value: c._id, label: c.businessName }));
+  // GSTINs of a customer not yet in the list ('' when the customer has no GSTIN saved).
+  const freeGsts = (c) => (c.gsts?.length ? c.gsts : [{ gstNumber: '' }]).filter((g) => !existing.has(filingKey(c._id, g.gstNumber)));
+  const options = customers.filter((c) => freeGsts(c).length).map((c) => ({ value: c._id, label: c.gsts?.length > 1 ? `${c.businessName} (${c.gsts.length} GST)` : c.businessName }));
+  const picked = customers.find((c) => c._id === f.customer);
+  const gstChoices = picked ? freeGsts(picked) : [];
+  const pickCustomer = (v) => {
+    const c = customers.find((x) => x._id === v);
+    setF({ ...f, customer: v, gstNumber: c ? freeGsts(c)[0]?.gstNumber || '' : '' });
+  };
 
   return (
-    <Modal open={open} onClose={onClose} title={filing ? 'Edit GST Filing' : 'Start GST Filing'} description={filing?.customer?.businessName} footer={
+    <Modal open={open} onClose={onClose} title={filing ? 'Edit GST Filing' : 'Start GST Filing'} description={filing && [filing.customer?.businessName, gstLabel(filing)].filter(Boolean).join(' · ')} footer={
       <><Button variant="secondary" onClick={onClose}>Cancel</Button><Button type="submit" form="gst-form" loading={saving}>{filing ? 'Save' : 'Start Filing'}</Button></>
     }>
       <form id="gst-form" onSubmit={submit} className="space-y-4">
         {!filing && (
           <Field label="Customer" required>
-            <SearchSelect options={options} value={f.customer} onChange={(v) => setF({ ...f, customer: v })} allLabel="Select customer" placeholder="Search customer…" width="w-full" />
+            <SearchSelect options={options} value={f.customer} onChange={pickCustomer} allLabel="Select customer" placeholder="Search customer…" width="w-full" />
           </Field>
+        )}
+        {!filing && picked && (
+          picked.gsts?.length ? (
+            <Field label="GST number" required hint={picked.gsts.length > gstChoices.length ? 'GST numbers already in the list are not shown.' : undefined}>
+              <Select value={f.gstNumber} onChange={set('gstNumber')}>
+                {gstChoices.map((g) => <option key={g.gstNumber} value={g.gstNumber}>{gstLabel(g)}{stateOf(g.gstNumber) ? ` (${stateOf(g.gstNumber)})` : ''}</option>)}
+              </Select>
+            </Field>
+          ) : <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">This customer has no GST number saved. Add it from Customers → Edit to track each GSTIN separately.</p>
         )}
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Return type"><Select value={f.returnType} onChange={set('returnType')}>{RETURN_TYPES.map((t) => <option key={t}>{t}</option>)}</Select></Field>
           {!filing && <Field label="Filing from"><Input type="date" value={f.startedOn} onChange={set('startedOn')} /></Field>}
         </div>
-        <Field label="Notes"><Textarea rows={2} value={f.notes} onChange={set('notes')} placeholder="Login / portal notes, special instructions…" /></Field>
+        <Field label="Notes"><Textarea rows={2} value={f.notes} onChange={set('notes')} placeholder="Special instructions… (save the portal password with the 🔑 button, not here)" /></Field>
       </form>
     </Modal>
   );
@@ -97,6 +127,62 @@ function ToggleDialog({ filing, onClose, onDone }) {
         <Field label="Reason / note"><Textarea rows={2} value={note} onChange={(e) => setNote(e.target.value)} placeholder={stopping ? 'e.g. Business closed, moved to other CA…' : 'Optional'} /></Field>
         {stopping && <p className="text-xs text-zinc-500">Stopped customers drop off the monthly bill reminders until resumed.</p>}
       </div>
+    </Modal>
+  );
+}
+
+function LoginDialog({ filing, onClose, onSaved }) {
+  const [f, setF] = useState(null);
+  const [show, setShow] = useState(false);
+  const [saving, setSaving] = useState(false);
+  useEffect(() => {
+    if (!filing) return;
+    setF(null); setShow(false);
+    api.get(`/gst-filing/${filing._id}/login`).then((r) => setF(r.data.data)).catch((e) => { toast.error(errorMessage(e)); onClose(); });
+  }, [filing]); // eslint-disable-line react-hooks/exhaustive-deps
+  const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
+  const copy = (v, what) => navigator.clipboard.writeText(v).then(() => toast.success(`${what} copied`), () => toast.error('Could not copy'));
+
+  const save = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      const { data } = await api.put(`/gst-filing/${filing._id}/login`, { username: f.username, password: f.password });
+      toast.success(data.message);
+      onSaved(); onClose();
+    } catch (err) {
+      toast.error(errorMessage(err));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Modal open={!!filing} onClose={onClose} title="GST portal login" description={[filing?.customer?.businessName, filing && gstLabel(filing)].filter(Boolean).join(' · ')} footer={
+      <><Button variant="secondary" onClick={onClose}>Cancel</Button><Button type="submit" form="gst-login-form" loading={saving} disabled={!f}>Save</Button></>
+    }>
+      {!f ? <Spinner /> : (
+        <form id="gst-login-form" onSubmit={save} className="space-y-4">
+          {f.unreadable && <p className="rounded-lg bg-amber-50 p-3 text-xs text-amber-800">The saved password can’t be read (the server’s secret key changed). Enter it again and save.</p>}
+          <Field label="User ID">
+            <div className="flex gap-2">
+              <Input autoComplete="off" value={f.username} onChange={set('username')} placeholder="GST portal username" />
+              <Button type="button" size="icon" variant="secondary" title="Copy" disabled={!f.username} onClick={() => copy(f.username, 'User ID')}><Copy className="h-4 w-4" /></Button>
+            </div>
+          </Field>
+          <Field label="Password">
+            <div className="flex gap-2">
+              <Input type={show ? 'text' : 'password'} autoComplete="new-password" value={f.password} onChange={set('password')} />
+              <Button type="button" size="icon" variant="secondary" title={show ? 'Hide' : 'Show'} onClick={() => setShow(!show)}>{show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</Button>
+              <Button type="button" size="icon" variant="secondary" title="Copy" disabled={!f.password} onClick={() => copy(f.password, 'Password')}><Copy className="h-4 w-4" /></Button>
+            </div>
+          </Field>
+          <p className="text-xs text-zinc-500">
+            Saved encrypted. Only people with GST Filing → GST portal login can see it. Clear both fields and save to remove it.
+            {f.updatedAt && <> Last changed {longDay(f.updatedAt.slice(0, 10))}{f.updatedBy ? ` by ${f.updatedBy}` : ''}.</>}
+          </p>
+        </form>
+      )}
     </Modal>
   );
 }
@@ -253,6 +339,7 @@ function WorkCard({ canManage, onChanged }) {
 export default function GstFiling() {
   const { can } = useAuth();
   const canManage = can('gst_filing', 'manage');
+  const canLogin = can('gst_filing', 'credentials');
   const [status, setStatus] = useState('running');
   const [search, setSearch] = useState('');
   const [q, setQ] = useState('');
@@ -262,11 +349,12 @@ export default function GstFiling() {
   const [toggling, setToggling] = useState(null);
   const [history, setHistory] = useState(null);
   const [deleting, setDeleting] = useState(null);
+  const [login, setLogin] = useState(null);
 
   useEffect(() => { const t = setTimeout(() => setQ(search), 300); return () => clearTimeout(t); }, [search]);
   const load = useCallback(() => {
     api.get('/gst-filing', { params: { status, ...(q && { search: q }) } }).then((r) => setData(r.data)).catch((e) => { toast.error(errorMessage(e)); setData({ data: [], stats: null }); });
-    api.get('/gst-filing').then((r) => setAllIds(new Set(r.data.data.map((x) => x.customer?._id)))).catch(() => {});
+    api.get('/gst-filing').then((r) => setAllIds(new Set(r.data.data.map((x) => filingKey(x.customer?._id, x.gstNumber))))).catch(() => {});
   }, [status, q]);
   useEffect(() => { load(); }, [load]);
 
@@ -320,11 +408,12 @@ export default function GstFiling() {
                 </div>
                 <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
                   <Badge>{g.returnType}</Badge>
-                  <span className="font-mono">{g.customer?.gstNumber || <span className="font-sans text-zinc-400">GSTIN not added</span>}</span>
+                  <div><GstCell g={g} /></div>
                 </div>
                 <div className="mt-1.5 text-[11px] text-zinc-400">{g.isRunning ? `Running since ${longDay(g.history.at(-1)?.date || g.startedOn)}` : `Stopped from ${longDay(g.stoppedOn)}`}</div>
                 {g.notes && <div className="mt-1.5 line-clamp-2 text-xs text-zinc-500">{g.notes}</div>}
                 <div className="mt-auto flex flex-wrap justify-end gap-1 pt-3">
+                  {canLogin && <Button size="icon" variant="ghost" title={g.hasLogin ? 'GST login' : 'Add GST login'} onClick={() => setLogin(g)}><KeyRound className={`h-4 w-4 ${g.hasLogin ? 'text-emerald-600' : ''}`} /></Button>}
                   <Button size="icon" variant="ghost" title="History" onClick={() => setHistory(g)}><History className="h-4 w-4" /></Button>
                   {canManage && (
                     <>
@@ -354,7 +443,7 @@ export default function GstFiling() {
                         <div><div className="font-medium">{g.customer?.businessName}</div><div className="text-xs text-zinc-500">{[g.customer?.contactPerson, g.customer?.phone].filter(Boolean).join(' · ')}</div></div>
                       </div>
                     </td>
-                    <td className="px-3 py-3 font-mono text-xs">{g.customer?.gstNumber || <span className="font-sans text-zinc-400">Not added</span>}</td>
+                    <td className="px-3 py-3 text-xs"><GstCell g={g} /></td>
                     <td className="px-3 py-3"><Badge>{g.returnType}</Badge></td>
                     <td className="px-3 py-3">
                       {g.isRunning ? <Badge tone="green">Running</Badge> : <Badge tone="red">Stopped</Badge>}
@@ -363,6 +452,7 @@ export default function GstFiling() {
                     <td className="max-w-56 truncate px-3 py-3 text-xs text-zinc-500">{g.notes}</td>
                     <td className="px-5 py-3">
                       <div className="flex justify-end gap-1">
+                        {canLogin && <Button size="icon" variant="ghost" title={g.hasLogin ? 'GST login' : 'Add GST login'} onClick={() => setLogin(g)}><KeyRound className={`h-4 w-4 ${g.hasLogin ? 'text-emerald-600' : ''}`} /></Button>}
                         <Button size="icon" variant="ghost" title="History" onClick={() => setHistory(g)}><History className="h-4 w-4" /></Button>
                         {canManage && (
                           <>
@@ -384,7 +474,8 @@ export default function GstFiling() {
       <FilingDialog open={editing !== undefined} filing={editing} existing={allIds} onClose={() => setEditing(undefined)} onSaved={load} />
       <ToggleDialog filing={toggling} onClose={() => setToggling(null)} onDone={load} />
       <HistoryDialog filing={history} onClose={() => setHistory(null)} />
-      <ConfirmDialog open={!!deleting} onClose={() => setDeleting(null)} onConfirm={remove} title="Remove from list?" message={`${deleting?.customer?.businessName} and its filing history will be removed. To pause filing, use Stop instead.`} confirmText="Remove" />
+      <LoginDialog filing={login} onClose={() => setLogin(null)} onSaved={load} />
+      <ConfirmDialog open={!!deleting} onClose={() => setDeleting(null)} onConfirm={remove} title="Remove from list?" message={`${[deleting?.customer?.businessName, deleting?.gstNumber].filter(Boolean).join(' · ')} and its filing history will be removed. To pause filing, use Stop instead.`} confirmText="Remove" />
     </div>
   );
 }

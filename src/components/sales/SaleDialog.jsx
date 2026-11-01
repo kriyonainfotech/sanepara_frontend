@@ -9,6 +9,7 @@ import Button from '../ui/Button';
 import { Field, Input, Select, Textarea } from '../ui/Field';
 import SearchSelect from '../tasks/SearchSelect';
 import BankSelect from '../BankSelect';
+import FirmSelect from '../FirmSelect';
 
 /**
  * Create / edit a sale. `preset` can fix the customer and pre-pick an assigned
@@ -19,6 +20,7 @@ export default function SaleDialog({ open, onClose, onSaved, sale, preset }) {
   const editing = Boolean(sale?._id);
   const [customers, setCustomers] = useState([]);
   const [services, setServices] = useState([]); // customer's assigned services
+  const [gsts, setGsts] = useState([]); // customer's firms
   const [members, setMembers] = useState([]);
   const [partners, setPartners] = useState([]);
   const [f, setF] = useState({});
@@ -32,12 +34,12 @@ export default function SaleDialog({ open, onClose, onSaved, sale, preset }) {
     setF(
       editing
         ? {
-            customer: sale.customer?._id || sale.customer, customerService: sale.customerService || '', title: sale.title,
+            customer: sale.customer?._id || sale.customer, customerService: sale.customerService || '', gstNumber: sale.gstNumber || '', title: sale.title,
             professionalFee: sale.professionalFee, govtFee: sale.govtFee, saleDate: sale.saleDate,
             soldBy: sale.soldBy?._id || sale.soldBy || '', b2bPartner: sale.b2bPartner?._id || sale.b2bPartner || '', b2bPercent: sale.b2bPercent ?? '', referredBy: sale.referredBy || '', referralAmount: sale.referralAmount || '', notes: sale.notes || '',
           }
         : {
-            customer: preset?.customer || '', customerService: preset?.customerService || '', title: preset?.title || '',
+            customer: preset?.customer || '', customerService: preset?.customerService || '', gstNumber: preset?.gstNumber || '', title: preset?.title || '',
             professionalFee: preset?.professionalFee ?? '', govtFee: '', saleDate: localToday(), soldBy: user._id,
             b2bPartner: '', b2bPercent: '', referredBy: '', referralAmount: '', notes: '', receivedNow: '', receivedMode: 'Cash', receivedBank: '',
           }
@@ -47,14 +49,20 @@ export default function SaleDialog({ open, onClose, onSaved, sale, preset }) {
 
   // Load the chosen customer's assigned services.
   useEffect(() => {
-    if (!open || !f.customer) return setServices([]);
-    api.get(`/customers/${f.customer}`).then((r) => setServices(r.data.services)).catch(() => setServices([]));
+    if (!open || !f.customer) { setGsts([]); return setServices([]); }
+    api.get(`/customers/${f.customer}`).then((r) => {
+      setServices(r.data.services);
+      const list = r.data.customer.gsts || [];
+      setGsts(list);
+      // A customer with a single firm bills to it by default.
+      if (!editing && list.length === 1) setF((x) => (x.customerService || x.gstNumber ? x : { ...x, gstNumber: list[0].gstNumber }));
+    }).catch(() => { setServices([]); setGsts([]); });
   }, [open, f.customer]);
 
   const set = (k, v) => setF((x) => ({ ...x, [k]: v }));
   const pickService = (id) => {
     const s = services.find((x) => x._id === id);
-    setF((x) => ({ ...x, customerService: id, ...(s && !editing && { title: x.title || [s.service?.name, s.periodLabel].filter(Boolean).join(' · '), professionalFee: x.professionalFee || s.service?.price || '' }) }));
+    setF((x) => ({ ...x, customerService: id, ...(s?.gstNumber && { gstNumber: s.gstNumber }), ...(s && !editing && { title: x.title || [s.service?.name, s.periodLabel].filter(Boolean).join(' · '), professionalFee: x.professionalFee || s.service?.price || '' }) }));
   };
   const pickPartner = (id) => setF((x) => ({ ...x, b2bPartner: id, b2bPercent: partners.find((p) => p._id === id)?.percentage ?? '' }));
 
@@ -91,18 +99,20 @@ export default function SaleDialog({ open, onClose, onSaved, sale, preset }) {
               <Input disabled value={customers.find((c) => c._id === f.customer)?.businessName || sale?.customer?.businessName || ''} />
             ) : (
               <SearchSelect width="w-full" options={customers.map((c) => ({ value: c._id, label: c.businessName }))} value={f.customer || 'all'}
-                onChange={(v) => setF((x) => ({ ...x, customer: v === 'all' ? '' : v, customerService: '' }))} allLabel="Select customer…" placeholder="Search customer..." />
+                onChange={(v) => setF((x) => ({ ...x, customer: v === 'all' ? '' : v, customerService: '', gstNumber: '' }))} allLabel="Select customer…" placeholder="Search customer..." />
             )}
           </Field>
           <Field label="Assigned service" hint="Links the sale so the service shows as billed">
             <Select value={f.customerService || ''} onChange={(e) => pickService(e.target.value)} disabled={!f.customer}>
               <option value="">— Other work —</option>
               {services.map((s) => (
-                <option key={s._id} value={s._id}>{s.service?.name}{s.periodLabel ? ` · ${s.periodLabel}` : ''}{s.billing ? ' (already billed)' : ''}</option>
+                <option key={s._id} value={s._id}>{s.service?.name}{s.periodLabel ? ` · ${s.periodLabel}` : ''}{s.firmName || s.gstNumber ? ` · ${s.firmName || s.gstNumber}` : ''}{s.billing ? ' (already billed)' : ''}</option>
               ))}
             </Select>
           </Field>
         </div>
+        <FirmSelect gsts={gsts} value={f.gstNumber} onChange={(v) => set('gstNumber', v)} customerName={customers.find((c) => c._id === f.customer)?.businessName}
+          disabled={Boolean(services.find((s) => s._id === f.customerService)?.gstNumber)} hint={services.find((s) => s._id === f.customerService)?.gstNumber ? 'Same firm as the assigned service.' : undefined} />
         <Field label="Work / description" required>
           <Input required value={f.title || ''} onChange={(e) => set('title', e.target.value)} placeholder="e.g. GST filing — October" />
         </Field>

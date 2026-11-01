@@ -1,7 +1,7 @@
 import {
   LayoutDashboard, Users, Layers, CalendarClock, ListChecks, FileCheck2, BellRing,
   TrendingUp, Handshake, Wallet, Receipt, FileText, QrCode, UserCog, Clock,
-  IndianRupee, Gift, BookOpen, BookCheck, Scale, ScrollText, ShieldCheck, MessageCircle, NotebookPen, CalendarDays, FileText as FileCheck, BarChart3, Building2, CalendarCheck, Landmark,
+  IndianRupee, Gift, BookOpen, BookCheck, Scale, ScrollText, ShieldCheck, MessageCircle, NotebookPen, CalendarDays, FileText as FileCheck, BarChart3, Building2, CalendarCheck, Landmark, ClipboardCheck,
 } from 'lucide-react';
 
 // `ready: false` items render a "Soon" tag and a placeholder page until built.
@@ -29,6 +29,7 @@ export const NAV = [
       { to: '/daily-tasks', label: 'Daily Tasks', icon: CalendarDays, ready: true, perm: ['tasks', 'rituals'] },
       { to: '/checklist-templates', label: 'Checklist Templates', icon: FileCheck, ready: true, perm: ['tasks', 'templates'] },
       { to: '/gst-filing', label: 'Running GST Filing', icon: FileCheck2, ready: true, perm: ['gst_filing', 'view'] },
+      { to: '/gst-returns', label: 'GST Return Tracker', icon: ClipboardCheck, ready: true, perm: ['gst_filing', 'view'] },
       { to: '/reminders', label: 'Monthly Reminders', icon: BellRing, ready: true, perm: ['reminders', 'view'] },
       { to: '/compliance', label: 'Compliance Calendar', icon: CalendarCheck, ready: true, perm: ['compliance', 'view'] },
     ],

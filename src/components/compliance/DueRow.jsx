@@ -36,7 +36,7 @@ export function DueRow({ o, today, onOpen, showDate = true }) {
           <span>{o.category}</span>
           {o.customer?.businessName && <span>{o.customer.businessName}</span>}
           {o.customers !== undefined && <span>{o.customers} running customer{o.customers === 1 ? '' : 's'}</span>}
-          {o.progress && <span>GST work {o.progress.completed}/{o.progress.total} done</span>}
+          {o.progress && <span>{o.step ? `Filed for ${o.progress.completed}/${o.progress.total}` : `GST work ${o.progress.completed}/${o.progress.total} done`}</span>}
         </div>
       </div>
     </button>

@@ -49,7 +49,7 @@ export default function SaleDetail({ saleId, onClose, onChanged }) {
   const s = data?.data;
   return (
     <>
-      <Modal open={!!saleId} onClose={onClose} size="lg" title={s ? `Sale ${s.saleNo}` : 'Sale'} description={s && `${s.customer?.businessName} · ${longDay(s.saleDate)}`} footer={s && (
+      <Modal open={!!saleId} onClose={onClose} size="lg" title={s ? `Sale ${s.saleNo}` : 'Sale'} description={s && [s.customer?.businessName, s.firmName && `for ${s.firmName}${s.ownerName ? ` (${s.ownerName})` : ''}`, longDay(s.saleDate)].filter(Boolean).join(' · ')} footer={s && (
         <>
           {can('sales', 'edit') && <Button variant="secondary" icon={Pencil} onClick={() => setEditing(true)}>Edit</Button>}
           {can('sales', 'delete') && <Button variant="secondary" icon={Trash2} onClick={removeSale} className="hover:!text-red-600">Delete</Button>}

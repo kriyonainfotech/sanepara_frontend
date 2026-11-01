@@ -5,6 +5,8 @@ import { ArrowLeft, Layers, Mail, MapPin, Pencil, Phone, Plus, Receipt, Trash2, 
 import { api, errorMessage } from '../lib/api';
 import { useAuth } from '../context/AuthContext';
 import { formatDate, formatMoney, localToday } from '../lib/format';
+import { firmLabel, stateOf } from '../lib/gst';
+import FirmSelect from '../components/FirmSelect';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import Badge from '../components/ui/Badge';
@@ -48,6 +50,7 @@ function AssignServiceModal({ open, onClose, customer, onAssigned }) {
   const [members, setMembers] = useState([]);
   const [partners, setPartners] = useState([]);
   const [serviceId, setServiceId] = useState('');
+  const [gstNumber, setGstNumber] = useState(''); // firm the work is for
   const [withSale, setWithSale] = useState(true);
   const [f, setF] = useState({});
   const [incentiveEdited, setIncentiveEdited] = useState(false);
@@ -56,6 +59,7 @@ function AssignServiceModal({ open, onClose, customer, onAssigned }) {
   useEffect(() => {
     if (!open) return;
     setServiceId('');
+    setGstNumber(customer?.gsts?.length === 1 ? customer.gsts[0].gstNumber : '');
     setWithSale(canSale);
     setIncentiveEdited(false);
     const partner = customer?.referredByPartner;
@@ -112,7 +116,7 @@ function AssignServiceModal({ open, onClose, customer, onAssigned }) {
         referralAmount: referral,
         incentiveMember: canIncentive ? f.incentiveMember : '',
       } : undefined;
-      const { data } = await api.post(`/customers/${customer._id}/services`, { serviceId, sale });
+      const { data } = await api.post(`/customers/${customer._id}/services`, { serviceId, gstNumber, sale });
       toast.success(data.sale ? `Service assigned and sale ${data.sale.saleNo} created` : 'Service assigned — its tasks are now in Schedule Management');
       onAssigned();
       onClose();
@@ -146,6 +150,7 @@ function AssignServiceModal({ open, onClose, customer, onAssigned }) {
           ))}
         </Select>
       </Field>
+      <FirmSelect gsts={customer?.gsts} value={gstNumber} onChange={setGstNumber} customerName={customer?.businessName} className="mt-4" hint="The work and its sale are in this firm’s name." />
       {selected && (
         <div className="mt-4 rounded-lg border border-zinc-200 bg-zinc-50 p-4">
           <div className="mb-2 text-xs font-medium text-zinc-500">{selected.tasks.length} tasks included</div>
@@ -310,7 +315,23 @@ export default function CustomerDetail() {
           <h2 className="text-sm font-semibold">Details</h2>
           <Info icon={UserRound} label="Contact person" value={customer.contactPerson} />
           <Info icon={Phone} label="Mobile" value={customer.phone} />
-          <Info icon={Receipt} label="GST number" value={customer.gstNumber} mono />
+          <div className="flex gap-3">
+            <Receipt className="mt-0.5 h-4 w-4 shrink-0 text-zinc-400" />
+            <div className="min-w-0 flex-1">
+              <div className="text-xs text-zinc-500">{customer.gsts?.length > 1 ? `GST numbers (${customer.gsts.length})` : 'GST number'}</div>
+              {customer.gsts?.length ? (
+                <ul className="mt-1 space-y-2">
+                  {customer.gsts.map((g) => (
+                    <li key={g._id} className="rounded-lg border border-zinc-100 bg-zinc-50/60 px-2.5 py-1.5">
+                      <div className="font-mono text-sm text-zinc-900">{g.gstNumber}</div>
+                      <div className="text-xs text-zinc-500">{[g.firmName, g.ownerName, stateOf(g.gstNumber)].filter(Boolean).join(' · ')}</div>
+                      {g.address && <div className="mt-0.5 text-xs text-zinc-400">{g.address}</div>}
+                    </li>
+                  ))}
+                </ul>
+              ) : <div className="mt-0.5 text-sm text-zinc-400">—</div>}
+            </div>
+          </div>
           <Info icon={Mail} label="Email" value={customer.email} />
           <Info icon={MapPin} label="Address" value={customer.address} />
           <Info icon={UserPlus} label="Referred by" value={customer.referredByPartner ? `${customer.referredByPartner.name}${customer.referredByPartner.firmName ? ` — ${customer.referredByPartner.firmName}` : ''} (B2B partner)` : customer.referredBy} />
@@ -335,6 +356,7 @@ export default function CustomerDetail() {
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="truncate text-sm font-medium">{s.service?.name || 'Deleted service'}{s.periodLabel && <span className="font-normal text-zinc-500"> · {s.periodLabel}</span>}</div>
+                    {s.gstNumber && <div className="truncate text-xs font-medium text-blue-700">{firmLabel({ ...s, ownerName: customer.gsts?.find((g) => g.gstNumber === s.gstNumber)?.ownerName })} · <span className="font-mono font-normal">{s.gstNumber}</span></div>}
                     <div className="text-xs text-zinc-500">
                       {s.done}/{s.total} done · {s.scheduled} scheduled · assigned {formatDate(s.createdAt)}
                     </div>

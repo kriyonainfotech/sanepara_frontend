@@ -1,13 +1,44 @@
 import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
+import { Plus, Trash2 } from 'lucide-react';
 import Modal from './ui/Modal';
 import Button from './ui/Button';
 import { Field, Input, Textarea } from './ui/Field';
 import { api, errorMessage } from '../lib/api';
+import { GST_RE, stateOf } from '../lib/gst';
 
-const EMPTY = { businessName: '', contactPerson: '', phone: '', email: '', gstNumber: '', address: '', referredBy: '', referredByPartner: '', notes: '' };
+const EMPTY = { businessName: '', contactPerson: '', phone: '', email: '', gsts: [], address: '', referredBy: '', referredByPartner: '', notes: '' };
+const EMPTY_GST = { gstNumber: '', firmName: '', ownerName: '', address: '' };
 const partnerLabel = (p) => `${p.name}${p.firmName ? ` — ${p.firmName}` : ''}`;
-const GST_RE = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/;
+
+// The customer's GST registrations: one card per GSTIN with its firm name and address.
+function GstList({ gsts, onChange, businessName }) {
+  const setRow = (i, k) => (e) => onChange(gsts.map((g, j) => (j === i ? { ...g, [k]: k === 'gstNumber' ? e.target.value.toUpperCase().replace(/\s/g, '') : e.target.value } : g)));
+  return (
+    <div className="space-y-2">
+      {gsts.map((g, i) => {
+        const state = stateOf(g.gstNumber);
+        return (
+          <div key={g._id || i} className="rounded-lg border border-zinc-200 p-3">
+            <div className="mb-2 flex items-center justify-between text-xs font-medium text-zinc-500">
+              <span>GST {i + 1}{i === 0 && gsts.length > 1 ? ' (main)' : ''}{state && <span className="ml-2 font-normal text-zinc-400">{state}</span>}</span>
+              <button type="button" onClick={() => onChange(gsts.filter((_, j) => j !== i))} title="Remove this GST" className="rounded p-1 text-zinc-400 hover:bg-zinc-100 hover:text-red-600"><Trash2 className="h-3.5 w-3.5" /></button>
+            </div>
+            <div className="grid gap-2 sm:grid-cols-2">
+              <Input value={g.gstNumber} onChange={setRow(i, 'gstNumber')} placeholder="GSTIN e.g. 24ABCDE1234F1Z5" className="font-mono uppercase placeholder:font-sans placeholder:normal-case" maxLength={15} />
+              <Input value={g.firmName} onChange={setRow(i, 'firmName')} placeholder={`Firm / trade name${businessName ? ` (e.g. ${businessName})` : ''}`} />
+              <Input value={g.ownerName} onChange={setRow(i, 'ownerName')} placeholder="Owner / proprietor name (e.g. Bhavnaben Ghori)" />
+              <Input value={g.address} onChange={setRow(i, 'address')} placeholder="Address of this GST (optional)" />
+            </div>
+          </div>
+        );
+      })}
+      <Button type="button" size="sm" variant="secondary" icon={Plus} onClick={() => onChange([...gsts, { ...EMPTY_GST, firmName: gsts.length ? '' : businessName }])}>
+        {gsts.length ? 'Add another GST' : 'Add GST number'}
+      </Button>
+    </div>
+  );
+}
 
 export default function CustomerFormModal({ open, onClose, customer, onSaved }) {
   const [form, setForm] = useState(EMPTY);
@@ -18,7 +49,7 @@ export default function CustomerFormModal({ open, onClose, customer, onSaved }) 
   useEffect(() => {
     if (!open) return;
     const partner = customer?.referredByPartner;
-    setForm(customer ? { ...EMPTY, ...customer, referredByPartner: partner?._id || '', referredBy: partner?._id ? partnerLabel(partner) : customer.referredBy || '' } : EMPTY);
+    setForm(customer ? { ...EMPTY, ...customer, gsts: (customer.gsts || []).map((g) => ({ ...EMPTY_GST, ...g })), referredByPartner: partner?._id || '', referredBy: partner?._id ? partnerLabel(partner) : customer.referredBy || '' } : EMPTY);
     api.get('/b2b/options').then((r) => setPartners(r.data.data)).catch(() => setPartners([]));
   }, [open, customer]);
 
@@ -34,15 +65,18 @@ export default function CustomerFormModal({ open, onClose, customer, onSaved }) 
 
   const submit = async (e) => {
     e.preventDefault();
-    const gst = form.gstNumber.trim().toUpperCase();
+    const gsts = form.gsts.filter((g) => g.gstNumber || g.firmName.trim() || g.ownerName.trim() || g.address.trim());
     if (!/^\d{10}$/.test(form.phone)) return toast.error('Mobile number must be exactly 10 digits');
-    if (gst && !GST_RE.test(gst)) return toast.error('GST number format looks wrong (15 characters, e.g. 24ABCDE1234F1Z5)');
+    const bad = gsts.find((g) => !GST_RE.test(g.gstNumber));
+    if (bad) return toast.error(`GST number "${bad.gstNumber || bad.firmName}" looks wrong (15 characters, e.g. 24ABCDE1234F1Z5)`);
+    const twice = gsts.find((g, i) => gsts.findIndex((x) => x.gstNumber === g.gstNumber) !== i);
+    if (twice) return toast.error(`GST number ${twice.gstNumber} is added twice`);
 
     setSaving(true);
     try {
       const payload = {
         ...form,
-        gstNumber: gst,
+        gsts,
         referredBy: form.referredByPartner ? '' : form.referredBy,
       };
       const { data } = customer
@@ -62,6 +96,7 @@ export default function CustomerFormModal({ open, onClose, customer, onSaved }) 
     <Modal
       open={open}
       onClose={onClose}
+      scroll
       title={customer ? 'Edit customer' : 'Add customer'}
       description={customer ? undefined : 'Add a converted lead as a new customer.'}
       footer={
@@ -90,9 +125,6 @@ export default function CustomerFormModal({ open, onClose, customer, onSaved }) 
             onChange={(e) => setForm({ ...form, phone: e.target.value.replace(/\D/g, '').slice(0, 10) })}
             placeholder="10 digit WhatsApp number"
           />
-        </Field>
-        <Field label="GST number">
-          <Input value={form.gstNumber} onChange={set('gstNumber')} placeholder="24ABCDE1234F1Z5" className="uppercase placeholder:normal-case" maxLength={15} />
         </Field>
         <Field label="Email">
           <Input type="email" value={form.email} onChange={set('email')} />
@@ -123,6 +155,9 @@ export default function CustomerFormModal({ open, onClose, customer, onSaved }) 
               </div>
             )}
           </div>
+        </Field>
+        <Field label="GST numbers" hint="Add every firm this customer pays for (own or family members’ GSTINs). Services and sales can then be billed to each firm, and one payment can cover all of them." className="sm:col-span-2">
+          <GstList gsts={form.gsts} onChange={(gsts) => setForm({ ...form, gsts })} businessName={form.businessName} />
         </Field>
         <Field label="Address" className="sm:col-span-2">
           <Textarea rows={2} value={form.address} onChange={set('address')} />

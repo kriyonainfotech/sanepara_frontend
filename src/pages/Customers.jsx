@@ -4,6 +4,7 @@ import { ChevronLeft, ChevronRight, FileSpreadsheet, Plus, Search, Users, X } fr
 import { api } from '../lib/api';
 import { useAuth } from '../context/AuthContext';
 import { formatDate } from '../lib/format';
+import { gstLabel } from '../lib/gst';
 import PageHeader from '../components/PageHeader';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
@@ -15,6 +16,12 @@ import CustomerFormModal from '../components/CustomerFormModal';
 import ImportCustomersModal from '../components/ImportCustomersModal';
 
 const NO_FILTERS = { service: '', gst: '', addedBy: '', from: '', to: '' };
+
+// "+2" after the main GST number when the customer has more.
+function MoreGst({ c }) {
+  const more = (c.gsts?.length || 0) - 1;
+  return more > 0 ? <span className="ml-1.5 rounded bg-zinc-100 px-1 font-sans text-[10px] font-medium text-zinc-600">+{more} more</span> : null;
+}
 
 function ReferredBy({ c }) {
   const p = c.referredByPartner;
@@ -82,6 +89,7 @@ export default function Customers() {
             <option value="stopped">GST filing stopped</option>
             <option value="has">Has GST number</option>
             <option value="none">No GST number</option>
+            <option value="multiple">More than one GST</option>
           </Select>
           {members.length > 0 && (
             <Select value={filters.addedBy} onChange={(e) => setFilter('addedBy', e.target.value)} className="w-auto!">
@@ -122,7 +130,7 @@ export default function Customers() {
                   </div>
                   <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
                     <div className="rounded-lg bg-zinc-50 px-3 py-2"><div className="text-[10px] font-semibold uppercase text-zinc-400">Mobile</div><div className="tabular-nums text-zinc-700">{c.phone}</div></div>
-                    <div className="rounded-lg bg-zinc-50 px-3 py-2"><div className="text-[10px] font-semibold uppercase text-zinc-400">GST number</div><div className="truncate font-mono text-zinc-700">{c.gstNumber || <span className="font-sans text-zinc-400">—</span>}</div></div>
+                    <div className="rounded-lg bg-zinc-50 px-3 py-2"><div className="text-[10px] font-semibold uppercase text-zinc-400">GST number</div><div className="truncate font-mono text-zinc-700">{c.gstNumber || <span className="font-sans text-zinc-400">—</span>}<MoreGst c={c} /></div></div>
                   </div>
                   {(c.referredByPartner || c.referredBy) && <div className="mt-2 text-xs text-zinc-500">Referred by <ReferredBy c={c} /></div>}
                   <div className="mt-2 flex justify-between text-xs text-zinc-500"><span>by {c.addedBy?.name || '—'}</span><span>{formatDate(c.createdAt)}</span></div>
@@ -154,7 +162,7 @@ export default function Customers() {
                         </div>
                       </td>
                       <td className="px-5 py-3 tabular-nums text-zinc-700">{c.phone}</td>
-                      <td className="px-5 py-3 font-mono text-xs text-zinc-700">{c.gstNumber || <span className="font-sans text-zinc-400">—</span>}</td>
+                      <td className="px-5 py-3 font-mono text-xs text-zinc-700" title={(c.gsts || []).map(gstLabel).join('\n')}>{c.gstNumber || <span className="font-sans text-zinc-400">—</span>}<MoreGst c={c} /></td>
                       <td className="px-5 py-3 text-zinc-700"><ReferredBy c={c} /></td>
                       <td className="px-5 py-3 text-zinc-700">{c.addedBy?.name || '—'}</td>
                       <td className="px-5 py-3 text-zinc-500">{formatDate(c.createdAt)}</td>

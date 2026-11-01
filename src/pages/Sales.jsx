@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Banknote, FileText, IndianRupee, Landmark, Plus, Receipt, Search, TrendingUp, Wallet } from 'lucide-react';
+import { Banknote, Download, FileSpreadsheet, FileText, IndianRupee, Landmark, Plus, Receipt, Search, TrendingUp, Wallet } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAuth } from '../context/AuthContext';
 import { formatMoney, localToday, longDay, shortDay } from '../lib/format';
@@ -16,6 +16,8 @@ import { Input, Select } from '../components/ui/Field';
 import SaleDialog from '../components/sales/SaleDialog';
 import SaleDetail from '../components/sales/SaleDetail';
 import CollectDialog from '../components/sales/CollectDialog';
+import ImportCollectionModal from '../components/sales/ImportCollectionModal';
+import { downloadCsv } from '../lib/sheet';
 
 function Stat({ label, value, icon: Icon, tone, sub }) {
   const tones = { zinc: 'bg-zinc-100 text-zinc-700', green: 'bg-emerald-50 text-emerald-600', blue: 'bg-blue-50 text-blue-600', amber: 'bg-amber-50 text-amber-600', rose: 'bg-rose-50 text-rose-600', violet: 'bg-violet-50 text-violet-600' };
@@ -89,6 +91,7 @@ function SalesTab({ month, refreshKey, onOpen, onCollect, canCollect }) {
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
                     <div className="truncate font-medium">{s.customer?.businessName}</div>
+                    {s.firmName && <div className="truncate text-xs text-blue-700">{s.firmName}{s.ownerName ? ` (${s.ownerName})` : ''}</div>}
                     <div className="text-xs text-zinc-500"><span className="font-mono font-semibold">{s.saleNo}</span> · {shortDay(s.saleDate)}</div>
                   </div>
                   <Badge tone={SALE_STATUS_TONE[s.status]}>{s.status}</Badge>
@@ -127,6 +130,7 @@ function SalesTab({ month, refreshKey, onOpen, onCollect, canCollect }) {
                     <td className="whitespace-nowrap px-4 py-3"><div className="font-mono text-xs font-semibold">{s.saleNo}</div><div className="text-xs text-zinc-500">{shortDay(s.saleDate)}</div></td>
                     <td className="px-4 py-3">
                       <div className="font-medium">{s.customer?.businessName}</div>
+                      {s.firmName && <div className="truncate text-xs text-blue-700">{s.firmName}{s.ownerName ? ` (${s.ownerName})` : ''}</div>}
                       <div className="text-xs text-zinc-500">{s.title}{s.b2bPartner && <span className="text-amber-700"> · via {s.b2bPartner.name} ({s.b2bPercent}%)</span>}{s.soldBy && <span> · {s.soldBy.name}</span>}</div>
                     </td>
                     <td className="px-3 py-3 text-right tabular-nums">{formatMoney(s.professionalFee)}</td>
@@ -150,10 +154,40 @@ function SalesTab({ month, refreshKey, onOpen, onCollect, canCollect }) {
   );
 }
 
+// Collection entries laid out like the office Excel sheet: DATE | AMOUNT | MODE | SR NO | NAME | SERVICE | PARTNER NAME.
+const payRow = (p) => ({
+  date: p.date,
+  amount: p.amount,
+  mode: p.mode === 'Bank' && p.bank?.name ? p.bank.name : p.mode, // TGPAY etc. = the bank account
+  srNo: p.reference || '',
+  name: p.customer?.businessName || '',
+  service: p.sale?.service?.name || p.sale?.title || '',
+  partner: p.sale?.b2bPartner?.name || p.sale?.referredBy || 'Self',
+});
+const ddmmyyyy = (d) => `${d.slice(8, 10)}/${d.slice(5, 7)}/${d.slice(0, 4)}`;
+
 function PaymentsTab({ month, refreshKey, onOpen }) {
   const [data, setData] = useState(null);
+  const [search, setSearch] = useState('');
+  const [mode, setMode] = useState('');
+  const [partner, setPartner] = useState('');
   useEffect(() => { setData(null); api.get('/sales/payments', { params: { month } }).then((r) => setData(r.data)); }, [month, refreshKey]);
   const s = data?.stats;
+
+  const all = (data?.data || []).map((p) => ({ p, r: payRow(p) }));
+  const modes = [...new Set(all.map((x) => x.r.mode))].sort();
+  const partners = [...new Set(all.map((x) => x.r.partner))].sort((a, b) => a.localeCompare(b));
+  const q = search.trim().toLowerCase();
+  const rows = all.filter(({ r }) => (!mode || r.mode === mode) && (!partner || r.partner === partner)
+    && (!q || [r.name, r.service, r.srNo, r.partner, String(r.amount)].some((v) => v.toLowerCase().includes(q))));
+  const shown = rows.reduce((a, x) => a + x.p.amount, 0);
+  const filtered = rows.length !== all.length;
+
+  const download = () => downloadCsv(
+    [['DATE', 'AMOUNT', 'MODE', 'SR NO', 'NAME', 'SERVICE', 'PARTNER NAME'], ...rows.map(({ r }) => [ddmmyyyy(r.date), String(r.amount), r.mode.toUpperCase(), r.srNo, r.name.toUpperCase(), r.service.toUpperCase(), r.partner.toUpperCase()])],
+    `collection-${month}.csv`
+  );
+
   return (
     <>
       {s && (
@@ -164,50 +198,64 @@ function PaymentsTab({ month, refreshKey, onOpen }) {
           <Stat label="By mode" value={Object.keys(s.byMode).length ? '' : '—'} icon={Wallet} tone="zinc" sub={Object.entries(s.byMode).map(([m, v]) => `${m} ${formatMoney(v)}`).join(' · ')} />
         </div>
       )}
+      {data && all.length > 0 && (
+        <div className="mb-3 flex flex-wrap items-center gap-2">
+          <div className="relative w-full sm:w-64">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
+            <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search name, service, sr no…" className="pl-9" />
+          </div>
+          <Select value={mode} onChange={(e) => setMode(e.target.value)} className="w-auto!"><option value="">All modes</option>{modes.map((m) => <option key={m}>{m}</option>)}</Select>
+          <Select value={partner} onChange={(e) => setPartner(e.target.value)} className="w-auto! max-w-52"><option value="">All partners</option>{partners.map((m) => <option key={m}>{m}</option>)}</Select>
+          {filtered && <span className="text-sm text-zinc-500">{rows.length} entries · <b className="text-zinc-800">{formatMoney(shown)}</b></span>}
+          <Button variant="secondary" size="sm" icon={Download} onClick={download} disabled={!rows.length} className="ml-auto">Download Excel</Button>
+        </div>
+      )}
       <Card className="overflow-hidden">
-        {!data ? <Spinner /> : data.data.length === 0 ? (
+        {!data ? <Spinner /> : all.length === 0 ? (
           <EmptyState icon={Banknote} title="No payments in this period" />
+        ) : rows.length === 0 ? (
+          <EmptyState icon={Search} title="No entries match" message="Try another search or filter." />
         ) : (
           <>
           <div className="grid gap-3 p-4 sm:grid-cols-2 lg:hidden">
-            {data.data.map((p) => (
+            {rows.map(({ p, r }) => (
               <div key={p._id} onClick={() => p.sale && onOpen(p.sale._id)} className="cursor-pointer rounded-xl border border-zinc-200 p-4 hover:bg-zinc-50">
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
-                    <div className="truncate font-medium">{p.customer?.businessName}</div>
-                    <div className="text-xs text-zinc-500">{longDay(p.date)}</div>
+                    <div className="truncate font-medium">{r.name}</div>
+                    <div className="text-xs text-zinc-500">{ddmmyyyy(r.date)}{r.srNo && <> · Sr {r.srNo}</>}</div>
                   </div>
-                  <div className="text-right">
-                    <div className="font-semibold tabular-nums">{formatMoney(p.amount)}</div>
-                    {p.discount > 0 && <div className="text-[11px] text-zinc-400">+{formatMoney(p.discount)} disc.</div>}
-                  </div>
+                  <div className="text-right font-semibold tabular-nums">{formatMoney(r.amount)}</div>
                 </div>
-                <div className="mt-1 truncate text-xs text-zinc-500"><span className="font-mono">{p.sale?.saleNo}</span> · {p.sale?.title}</div>
-                <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-zinc-500">
-                  <Badge>{p.mode}</Badge>{p.bank && <Badge tone="blue">{p.bank.name}</Badge>}{p.reference && <span className="text-zinc-400">{p.reference}</span>}
-                  <span className="ml-auto tabular-nums">Govt {formatMoney(p.govtPart)} · Prof. {formatMoney(p.professionalPart)}</span>
-                </div>
+                <div className="mt-1 truncate text-xs text-zinc-600">{r.service}</div>
+                <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-zinc-500"><Badge>{r.mode}</Badge><span>Partner: {r.partner}</span></div>
               </div>
             ))}
           </div>
-          <div className="hidden overflow-x-auto lg:block"><table className="w-full min-w-[640px] text-sm">
-            <thead><tr className="border-b border-zinc-100 bg-zinc-50/70 text-left text-xs text-zinc-500">
-              <th className="px-4 py-2.5 font-medium">Date</th><th className="px-4 py-2.5 font-medium">Customer</th><th className="px-4 py-2.5 font-medium">Sale</th><th className="px-3 py-2.5 font-medium">Mode</th>
-              <th className="px-3 py-2.5 text-right font-medium">Amount</th><th className="px-3 py-2.5 text-right font-medium">Govt fee</th><th className="px-4 py-2.5 text-right font-medium">Professional</th>
+          <div className="hidden overflow-x-auto lg:block"><table className="w-full min-w-[760px] text-sm">
+            <thead><tr className="bg-emerald-800 text-left text-xs font-semibold uppercase tracking-wide text-white">
+              <th className="px-4 py-2.5">Date</th><th className="px-3 py-2.5 text-right">Amount</th><th className="px-3 py-2.5">Mode</th><th className="px-3 py-2.5 text-right">Sr No</th>
+              <th className="px-4 py-2.5">Name</th><th className="px-4 py-2.5">Service</th><th className="px-4 py-2.5">Partner Name</th>
             </tr></thead>
-            <tbody className="divide-y divide-zinc-100">
-              {data.data.map((p) => (
-                <tr key={p._id} onClick={() => p.sale && onOpen(p.sale._id)} className="cursor-pointer hover:bg-zinc-50">
-                  <td className="whitespace-nowrap px-4 py-2.5">{longDay(p.date)}</td>
-                  <td className="px-4 py-2.5 font-medium">{p.customer?.businessName}</td>
-                  <td className="px-4 py-2.5 text-xs text-zinc-500"><span className="font-mono">{p.sale?.saleNo}</span> · {p.sale?.title}</td>
-                  <td className="px-3 py-2.5"><Badge>{p.mode}</Badge>{p.bank && <div className="text-[11px] text-zinc-500">{p.bank.name}</div>}{p.reference && <div className="text-[11px] text-zinc-400">{p.reference}</div>}</td>
-                  <td className="px-3 py-2.5 text-right font-semibold tabular-nums">{formatMoney(p.amount)}{p.discount > 0 && <div className="text-[11px] font-normal text-zinc-400">+{formatMoney(p.discount)} disc.</div>}</td>
-                  <td className="px-3 py-2.5 text-right tabular-nums text-zinc-500">{formatMoney(p.govtPart)}</td>
-                  <td className="px-4 py-2.5 text-right tabular-nums">{formatMoney(p.professionalPart)}</td>
+            <tbody>
+              {rows.map(({ p, r }, i) => (
+                <tr key={p._id} onClick={() => p.sale && onOpen(p.sale._id)} title={p.sale ? `${p.sale.saleNo} · govt ${formatMoney(p.govtPart)} · professional ${formatMoney(p.professionalPart)}` : undefined}
+                  className={`cursor-pointer border-b border-zinc-100 uppercase hover:bg-emerald-50/60 ${i % 2 ? 'bg-zinc-50/70' : 'bg-white'}`}>
+                  <td className="whitespace-nowrap px-4 py-2 tabular-nums">{ddmmyyyy(r.date)}</td>
+                  <td className="px-3 py-2 text-right tabular-nums">{r.amount.toLocaleString('en-IN')}{p.discount > 0 && <div className="text-[10px] normal-case text-zinc-400">+{formatMoney(p.discount)} disc.</div>}</td>
+                  <td className="px-3 py-2">{r.mode}</td>
+                  <td className="px-3 py-2 text-right tabular-nums">{r.srNo}</td>
+                  <td className="px-4 py-2">{r.name}</td>
+                  <td className="px-4 py-2">{r.service}</td>
+                  <td className="px-4 py-2">{r.partner}</td>
                 </tr>
               ))}
             </tbody>
+            <tfoot><tr className="border-t-2 border-zinc-200 bg-zinc-50 font-semibold">
+              <td className="px-4 py-2.5 text-xs uppercase text-zinc-500">Total</td>
+              <td className="px-3 py-2.5 text-right tabular-nums">{shown.toLocaleString('en-IN')}</td>
+              <td colSpan={5} className="px-3 py-2.5 text-xs font-normal text-zinc-500">{rows.length} entries</td>
+            </tr></tfoot>
           </table></div>
           </>
         )}
@@ -280,6 +328,7 @@ export default function Sales() {
   const [newOpen, setNewOpen] = useState(false);
   const [openId, setOpenId] = useState(null);
   const [collecting, setCollecting] = useState(null);
+  const [importOpen, setImportOpen] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const refresh = useCallback(() => setRefreshKey((k) => k + 1), []);
   const canCollect = can('sales', 'collect') || can('sales', 'edit');
@@ -292,6 +341,7 @@ export default function Sales() {
         actions={
           <>
             {tab !== 'outstanding' && <div className="w-40"><Input type="month" value={month} onChange={(e) => e.target.value && setMonth(e.target.value)} /></div>}
+            {can('sales', 'create') && canCollect && <Button variant="secondary" icon={FileSpreadsheet} onClick={() => setImportOpen(true)}>Import Excel</Button>}
             {can('sales', 'create') && <Button icon={Plus} onClick={() => setNewOpen(true)}>New Sale</Button>}
           </>
         }
@@ -304,6 +354,7 @@ export default function Sales() {
       <SaleDialog open={newOpen} onClose={() => setNewOpen(false)} onSaved={refresh} />
       <SaleDetail saleId={openId} onClose={() => setOpenId(null)} onChanged={refresh} />
       <CollectDialog sale={collecting} onClose={() => setCollecting(null)} onDone={refresh} />
+      <ImportCollectionModal open={importOpen} onClose={() => setImportOpen(false)} onImported={refresh} />
     </div>
   );
 }

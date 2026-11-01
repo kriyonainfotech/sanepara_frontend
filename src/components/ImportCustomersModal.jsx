@@ -5,6 +5,7 @@ import Modal from './ui/Modal';
 import Button from './ui/Button';
 import Badge from './ui/Badge';
 import { api, errorMessage } from '../lib/api';
+import { downloadCsv, readFile } from '../lib/sheet';
 
 // Sheet column headings we understand, compared without case, spaces or punctuation.
 const COLUMNS = {
@@ -15,51 +16,19 @@ const COLUMNS = {
   email: ['email', 'emailid', 'mail'],
   address: ['address', 'addr', 'city'],
   notes: ['notes', 'note', 'remarks', 'remark'],
+  referredBy: ['referredby', 'referred', 'reference', 'referenceby', 'ref', 'refby', 'referral', 'referralby', 'refrence', 'refered', 'referedby'],
   gstFiling: ['gstfiling', 'filing', 'returntype', 'gstreturn', 'gstreturntype', 'gstfilingtype'],
 };
 const norm = (s) => String(s ?? '').toLowerCase().replace(/[^a-z0-9]/g, '');
 
 const SAMPLE = [
-  ['Business Name', 'Contact Person', 'Mobile', 'GST Number', 'Email', 'Address', 'Notes', 'GST Filing'],
-  ['Shree Ganesh Traders', 'Ramesh Patel', '9825012345', '24ABCDE1234F1Z5', 'ganesh@example.com', 'Ring Road, Surat', '', 'Monthly'],
-  ['Krishna Textiles', 'Mahesh Shah', '9876543210', '', '', 'Varachha, Surat', 'ITR only', ''],
+  ['Business Name', 'Contact Person', 'Mobile', 'GST Number', 'Email', 'Address', 'Notes', 'GST Filing', 'Referred By'],
+  ['Shree Ganesh Traders', 'Ramesh Patel', '9825012345', '24ABCDE1234F1Z5', 'ganesh@example.com', 'Ring Road, Surat', '', 'Monthly', 'Suresh Bhai'],
+  ['Krishna Textiles', 'Mahesh Shah', '9876543210', '', '', 'Varachha, Surat', 'ITR only', '', ''],
 ];
 
-const toCsv = (rows) => rows.map((r) => r.map((v) => (/[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v)).join(',')).join('\r\n');
-
 function downloadSample() {
-  const blob = new Blob([`﻿${toCsv(SAMPLE)}`], { type: 'text/csv;charset=utf-8' });
-  const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: 'customers-import-sample.csv' });
-  a.click();
-  URL.revokeObjectURL(a.href);
-}
-
-// Small CSV reader: quoted fields, escaped quotes, commas and new lines inside quotes.
-function parseCsv(text) {
-  const rows = [];
-  let row = [], cell = '', quoted = false;
-  for (let i = 0; i < text.length; i++) {
-    const ch = text[i];
-    if (quoted) {
-      if (ch === '"' && text[i + 1] === '"') { cell += '"'; i++; }
-      else if (ch === '"') quoted = false;
-      else cell += ch;
-    } else if (ch === '"') quoted = true;
-    else if (ch === ',') { row.push(cell); cell = ''; }
-    else if (ch === '\n' || ch === '\r') {
-      if (ch === '\r' && text[i + 1] === '\n') i++;
-      row.push(cell); rows.push(row); row = []; cell = '';
-    } else cell += ch;
-  }
-  if (cell || row.length) { row.push(cell); rows.push(row); }
-  return rows;
-}
-
-async function readFile(file) {
-  if (/\.csv$/i.test(file.name)) return parseCsv((await file.text()).replace(/^﻿/, ''));
-  if (!/\.xlsx$/i.test(file.name)) throw new Error('Choose an Excel (.xlsx) or CSV file. For old .xls files, open in Excel and “Save As” .xlsx first.');
-  const { readSheet } = await import('read-excel-file/browser');
-  return readSheet(file);
+  downloadCsv(SAMPLE, 'customers-import-sample.csv');
 }
 
 // Sheet rows → customer rows, using the first row that has a business name column as headings.
@@ -155,6 +124,7 @@ export default function ImportCustomersModal({ open, onClose, onImported }) {
             </div>
             <b>Business Name</b> and <b>Mobile</b> (10 digits) are required. Optional: Contact Person, GST Number, Email, Address, Notes.
             <br /><b>GST Filing</b> (optional): <i>Monthly</i>, <i>Quarterly</i> or <i>Composition</i> also adds the customer to Running GST Filing from today.
+            <br /><b>Referred By</b> (optional): a B2B partner’s name or firm name links that partner; any other name is saved as text.
             <br />Customers already in the CRM (same GST number, or same business name and mobile) are skipped.
           </div>
         </div>

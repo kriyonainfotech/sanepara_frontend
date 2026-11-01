@@ -33,6 +33,8 @@ function printNode(node, title) {
 function InvoiceDocument({ invoice, payments, firm }) {
   const sale = invoice.sale;
   const c = sale.customer || {};
+  // Billed firm: the sale's GSTIN with the customer's current details for it (old sales: none).
+  const firm_ = sale.gstNumber ? { firmName: sale.firmName, ownerName: sale.ownerName, ...c.gsts?.find((g) => g.gstNumber === sale.gstNumber), gstNumber: sale.gstNumber } : null;
   const rows = [
     sale.professionalFee > 0 && { label: sale.service?.name ? `${sale.service.name} — ${sale.title}` : sale.title, sub: 'Professional fee', amount: sale.professionalFee },
     sale.govtFee > 0 && { label: 'Government fee', sub: 'Paid to government on your behalf', amount: sale.govtFee },
@@ -57,11 +59,23 @@ function InvoiceDocument({ invoice, payments, firm }) {
 
       <div className="mt-5">
         <div className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">Bill to</div>
-        <div className="mt-1 font-semibold text-zinc-900">{c.businessName}</div>
-        {c.contactPerson && <div className="text-xs text-zinc-600">{c.contactPerson}</div>}
-        {c.address && <div className="max-w-xs whitespace-pre-line text-xs text-zinc-600">{c.address}</div>}
-        <div className="text-xs text-zinc-600">{[c.phone, c.email].filter(Boolean).join(' · ')}</div>
-        {c.gstNumber && <div className="text-xs text-zinc-600">GSTIN: {c.gstNumber}</div>}
+        {firm_ ? (
+          <>
+            <div className="mt-1 font-semibold text-zinc-900">{firm_.firmName || c.businessName}</div>
+            {firm_.ownerName && <div className="text-xs text-zinc-600">{firm_.ownerName}</div>}
+            {(firm_.address || c.address) && <div className="max-w-xs whitespace-pre-line text-xs text-zinc-600">{firm_.address || c.address}</div>}
+            <div className="text-xs text-zinc-600">GSTIN: {firm_.gstNumber}</div>
+            {(firm_.firmName || '') !== c.businessName && <div className="mt-1 text-xs text-zinc-500">Account of {c.businessName}{c.phone ? ` · ${c.phone}` : ''}</div>}
+          </>
+        ) : (
+          <>
+            <div className="mt-1 font-semibold text-zinc-900">{c.businessName}</div>
+            {c.contactPerson && <div className="text-xs text-zinc-600">{c.contactPerson}</div>}
+            {c.address && <div className="max-w-xs whitespace-pre-line text-xs text-zinc-600">{c.address}</div>}
+            <div className="text-xs text-zinc-600">{[c.phone, c.email].filter(Boolean).join(' · ')}</div>
+            {c.gstNumber && <div className="text-xs text-zinc-600">GSTIN: {c.gstNumber}</div>}
+          </>
+        )}
       </div>
 
       <table className="mt-6 w-full">
@@ -194,7 +208,7 @@ export default function Invoices() {
                   <div><div className="font-medium">{i.invoiceNo}</div><div className="text-xs text-zinc-500">{shortDay(i.invoiceDate)}</div></div>
                   <Badge tone={SALE_STATUS_TONE[i.sale?.status]}>{i.sale?.status}</Badge>
                 </div>
-                <div className="mt-2 font-medium">{i.sale?.customer?.businessName}</div>
+                <div className="mt-2 font-medium">{i.sale?.firmName || i.sale?.customer?.businessName}</div>
                 <div className="text-xs text-zinc-500">{i.sale?.saleNo} · {i.sale?.title}</div>
                 <div className="mt-3 grid w-full grid-cols-2 gap-2 text-center tabular-nums">
                   <div className="rounded-lg bg-zinc-50 py-2"><div className="text-[10px] font-semibold uppercase text-zinc-400">Amount</div><div className="font-semibold">{formatMoney(i.sale?.totalAmount)}</div></div>
@@ -214,7 +228,7 @@ export default function Invoices() {
               {data.data.map((i) => (
                 <tr key={i._id} className="cursor-pointer hover:bg-zinc-50/60" onClick={() => setViewing(i._id)}>
                   <td className="px-5 py-3"><div className="font-medium">{i.invoiceNo}</div><div className="text-xs text-zinc-500">{shortDay(i.invoiceDate)}</div></td>
-                  <td className="px-3 py-3"><div className="font-medium">{i.sale?.customer?.businessName}</div><div className="text-xs text-zinc-500">{i.sale?.saleNo} · {i.sale?.title}</div></td>
+                  <td className="px-3 py-3"><div className="font-medium">{i.sale?.firmName || i.sale?.customer?.businessName}</div>{i.sale?.firmName && i.sale.firmName !== i.sale.customer?.businessName && <div className="text-xs text-zinc-400">Account of {i.sale.customer?.businessName}</div>}<div className="text-xs text-zinc-500">{i.sale?.saleNo} · {i.sale?.title}</div></td>
                   <td className="px-3 py-3 text-right tabular-nums">{formatMoney(i.sale?.totalAmount)}</td>
                   <td className={`px-3 py-3 text-right font-semibold tabular-nums ${i.sale?.balance > 0 ? 'text-rose-600' : 'text-zinc-400'}`}>{formatMoney(i.sale?.balance)}</td>
                   <td className="px-3 py-3"><Badge tone={SALE_STATUS_TONE[i.sale?.status]}>{i.sale?.status}</Badge></td>

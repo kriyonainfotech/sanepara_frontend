@@ -34,7 +34,7 @@ export default function CollectDialog({ sale, onClose, onDone }) {
   const govtDue = sale ? Math.max(0, sale.govtFee - sale.govtReceived) : 0;
 
   return (
-    <Modal open={!!sale} onClose={onClose} title="Record Payment" description={sale && `${sale.saleNo} · ${sale.customer?.businessName || ''} · ${sale.title}`} footer={
+    <Modal open={!!sale} onClose={onClose} title="Record Payment" description={sale && [sale.saleNo, sale.customer?.businessName, sale.firmName, sale.title].filter(Boolean).join(' · ')} footer={
       <><Button variant="secondary" onClick={onClose}>Cancel</Button><Button type="submit" form="collect-form" loading={saving}>Save Payment</Button></>
     }>
       {sale && (
