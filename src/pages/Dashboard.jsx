@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ArrowUpRight, CalendarCheck, CalendarClock, Layers, UserCog, Users } from 'lucide-react';
+import { ArrowUpRight, CalendarCheck, CalendarClock, FileCheck2, Layers, UserCog, Users } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAuth } from '../context/AuthContext';
 import { formatDate, localToday } from '../lib/format';
@@ -59,6 +59,57 @@ function ComplianceAlerts() {
   );
 }
 
+// GST Filing status card for current/previous month
+function GstFilingOverview() {
+  const [data, setData] = useState(null);
+  useEffect(() => {
+    api.get('/gst-filing/tracker').then((r) => setData(r.data)).catch(() => {});
+  }, []);
+  if (!data?.stats || data.stats.total === 0) return null;
+  const { stats, monthLabel, month } = data;
+  return (
+    <Card className="mb-6 overflow-hidden">
+      <div className="flex items-center justify-between border-b border-zinc-100 px-5 py-4">
+        <h2 className="flex items-center gap-2 text-sm font-semibold">
+          <FileCheck2 className="h-4 w-4 text-emerald-600" /> GST Filing Status ({monthLabel})
+          {stats.done === stats.total ? (
+            <span className="rounded-md bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">All Done</span>
+          ) : (
+            <span className="rounded-md bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700">{stats.total - stats.done} Pending</span>
+          )}
+        </h2>
+        <Link to={`/gst-returns?month=${month}`} className="inline-flex items-center gap-1 text-xs font-medium text-zinc-500 hover:text-zinc-900">
+          GST Tracker <ArrowUpRight className="h-3.5 w-3.5" />
+        </Link>
+      </div>
+      <div className="grid grid-cols-2 divide-y sm:grid-cols-4 sm:divide-y-0 sm:divide-x divide-zinc-100 bg-zinc-50/50 p-4">
+        <div className="px-3 py-1">
+          <div className="text-xs text-zinc-500">Total Customers</div>
+          <div className="text-lg font-semibold text-zinc-900">{stats.total}</div>
+        </div>
+        <div className="px-3 py-1">
+          <div className="text-xs text-zinc-500">GSTR-1 Done</div>
+          <div className="text-lg font-semibold text-emerald-600">
+            {stats.gstr1Filed} <span className="text-xs font-normal text-zinc-400">/ {stats.returns}</span>
+          </div>
+        </div>
+        <div className="px-3 py-1">
+          <div className="text-xs text-zinc-500">GSTR-3B Done</div>
+          <div className="text-lg font-semibold text-emerald-600">
+            {stats.gstr3bFiled} <span className="text-xs font-normal text-zinc-400">/ {stats.returns}</span>
+          </div>
+        </div>
+        <div className="px-3 py-1">
+          <div className="text-xs text-zinc-500">All Done</div>
+          <div className="text-lg font-semibold text-zinc-900">
+            {stats.done} <span className="text-xs font-normal text-zinc-400">/ {stats.total}</span>
+          </div>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
 const greeting = () => {
   const h = new Date().getHours();
   return h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
@@ -85,6 +136,8 @@ export default function Dashboard() {
       {user.role !== 'superadmin' && <div className="mb-6"><ClockCard /></div>}
 
       {can('compliance') && <ComplianceAlerts />}
+
+      {can('gst_filing') && <GstFilingOverview />}
 
       {!allowed ? (
         <Card className="p-8 text-center text-sm text-zinc-500">Use the menu on the left to get to your work.</Card>

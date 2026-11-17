@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
-import { BookText, HandCoins, Plus, Undo2 } from 'lucide-react';
+import { BookText, HandCoins, IndianRupee, Plus, Undo2 } from 'lucide-react';
 import { api, errorMessage } from '../../lib/api';
 import { useAuth } from '../../context/AuthContext';
 import { formatMoney, shortDay } from '../../lib/format';
@@ -13,6 +13,7 @@ import EmptyState from '../ui/EmptyState';
 import SaleDialog from './SaleDialog';
 import SaleDetail from './SaleDetail';
 import ReceivePaymentDialog from './ReceivePaymentDialog';
+import RecordPaymentModal from './RecordPaymentModal';
 import ConfirmDialog from '../ui/ConfirmDialog';
 
 // Firm a sale / payment part is billed to, as a small line.
@@ -59,6 +60,7 @@ export default function CustomerAccount({ customerId, refreshKey, onChanged }) {
   const [newOpen, setNewOpen] = useState(false);
   const [openSale, setOpenSale] = useState(null);
   const [receiving, setReceiving] = useState(false);
+  const [recordOpen, setRecordOpen] = useState(false);
   const [undoing, setUndoing] = useState(null); // receipt no.
   const canCollect = can('sales', 'collect') || can('sales', 'edit');
 
@@ -82,6 +84,7 @@ export default function CustomerAccount({ customerId, refreshKey, onChanged }) {
         <h2 className="flex items-center gap-2 text-sm font-semibold"><BookText className="h-4 w-4" /> Account & Ledger</h2>
         <div className="flex gap-2">
           {canCollect && t?.outstanding > 0 && <Button size="sm" variant="secondary" icon={HandCoins} onClick={() => setReceiving(true)}>Receive payment</Button>}
+          {canCollect && <Button size="sm" variant="secondary" icon={IndianRupee} onClick={() => setRecordOpen(true)}>Record payment</Button>}
           {can('sales', 'create') && <Button size="sm" icon={Plus} onClick={() => setNewOpen(true)}>New sale</Button>}
         </div>
       </div>
@@ -164,6 +167,7 @@ export default function CustomerAccount({ customerId, refreshKey, onChanged }) {
       <SaleDialog open={newOpen} onClose={() => setNewOpen(false)} preset={{ customer: customerId }} onSaved={changed} />
       <SaleDetail saleId={openSale} onClose={() => setOpenSale(null)} onChanged={changed} />
       <ReceivePaymentDialog open={receiving} customerId={customerId} customerName={data?.customer?.businessName} sales={data?.sales} onClose={() => setReceiving(false)} onDone={changed} />
+      <RecordPaymentModal open={recordOpen} initialCustomer={customerId} onClose={() => setRecordOpen(false)} onDone={changed} />
       <ConfirmDialog open={!!undoing} onClose={() => setUndoing(null)} onConfirm={undoReceipt} title="Remove receipt?" message={`Receipt ${undoing} and its share in every sale will be removed.`} confirmText="Remove" />
     </Card>
   );

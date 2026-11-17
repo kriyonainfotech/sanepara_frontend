@@ -16,6 +16,7 @@ import { Input, Select } from '../components/ui/Field';
 import SaleDialog from '../components/sales/SaleDialog';
 import SaleDetail from '../components/sales/SaleDetail';
 import CollectDialog from '../components/sales/CollectDialog';
+import RecordPaymentModal from '../components/sales/RecordPaymentModal';
 import ImportCollectionModal from '../components/sales/ImportCollectionModal';
 import { downloadCsv } from '../lib/sheet';
 
@@ -35,16 +36,30 @@ function SalesTab({ month, refreshKey, onOpen, onCollect, canCollect }) {
   const [search, setSearch] = useState('');
   const [q, setQ] = useState('');
   const [status, setStatus] = useState('');
+  const [allPending, setAllPending] = useState(true);
+  const [service, setService] = useState('');
+  const [services, setServices] = useState([]);
   const [partner, setPartner] = useState('');
   const [partners, setPartners] = useState([]);
   const { can } = useAuth();
 
   useEffect(() => { const t = setTimeout(() => setQ(search), 300); return () => clearTimeout(t); }, [search]);
   useEffect(() => { if (can('b2b', 'view')) api.get('/b2b').then((r) => setPartners(r.data.data)); }, [can]);
+  useEffect(() => { api.get('/services', { params: { active: true } }).then((r) => setServices(r.data.services || [])).catch(() => setServices([])); }, []);
   useEffect(() => {
     setData(null);
-    api.get('/sales', { params: { month, ...(q && { search: q }), ...(status && { status }), ...(partner && { b2bPartner: partner }) } }).then((r) => setData(r.data));
-  }, [month, q, status, partner, refreshKey]);
+    const queryMonth = status === 'open' && allPending ? 'all' : month;
+    api.get('/sales', {
+      params: {
+        month: queryMonth,
+        ...(status === 'open' && allPending && { allPending: 'true' }),
+        ...(q && { search: q }),
+        ...(status && { status }),
+        ...(partner && { b2bPartner: partner }),
+        ...(service && { service }),
+      },
+    }).then((r) => setData(r.data));
+  }, [month, q, status, partner, service, allPending, refreshKey]);
 
   const s = data?.stats;
   return (
@@ -71,6 +86,25 @@ function SalesTab({ month, refreshKey, onOpen, onCollect, canCollect }) {
             {['Pending', 'Partial', 'Cleared', 'Written Off'].map((x) => <option key={x}>{x}</option>)}
           </Select>
         </div>
+        {status === 'open' && (
+          <label className="flex items-center gap-1.5 rounded-lg border border-zinc-200 bg-zinc-50 px-2.5 py-1.5 text-xs text-zinc-700 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={allPending}
+              onChange={(e) => setAllPending(e.target.checked)}
+              className="h-3.5 w-3.5 rounded border-zinc-300 accent-zinc-900"
+            />
+            <span>All months ({data?.stats?.count || 0} pending)</span>
+          </label>
+        )}
+        {services.length > 0 && (
+          <div className="w-48">
+            <Select value={service} onChange={(e) => setService(e.target.value)}>
+              <option value="">All services</option>
+              {services.map((s) => <option key={s._id} value={s._id}>{s.name}</option>)}
+            </Select>
+          </div>
+        )}
         {partners.length > 0 && (
           <div className="w-48">
             <Select value={partner} onChange={(e) => setPartner(e.target.value)}>
@@ -328,6 +362,7 @@ export default function Sales() {
   const [newOpen, setNewOpen] = useState(false);
   const [openId, setOpenId] = useState(null);
   const [collecting, setCollecting] = useState(null);
+  const [recordOpen, setRecordOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const refresh = useCallback(() => setRefreshKey((k) => k + 1), []);
@@ -340,8 +375,28 @@ export default function Sales() {
         description="Sales with professional & government fee, payments received and who still owes."
         actions={
           <>
-            {tab !== 'outstanding' && <div className="w-40"><Input type="month" value={month} onChange={(e) => e.target.value && setMonth(e.target.value)} /></div>}
+            {tab !== 'outstanding' && (
+              <div className="flex items-center gap-1.5">
+                <div className="w-40">
+                  <Input
+                    type="month"
+                    value={month === 'all' ? '' : month}
+                    onChange={(e) => e.target.value && setMonth(e.target.value)}
+                    disabled={month === 'all'}
+                  />
+                </div>
+                <Button
+                  size="sm"
+                  variant={month === 'all' ? 'primary' : 'secondary'}
+                  onClick={() => setMonth(month === 'all' ? localToday().slice(0, 7) : 'all')}
+                  title={month === 'all' ? 'Filter by month' : 'Show all months across all time'}
+                >
+                  {month === 'all' ? 'All Time' : 'All'}
+                </Button>
+              </div>
+            )}
             {can('sales', 'create') && canCollect && <Button variant="secondary" icon={FileSpreadsheet} onClick={() => setImportOpen(true)}>Import Excel</Button>}
+            {canCollect && <Button variant="secondary" icon={IndianRupee} onClick={() => setRecordOpen(true)}>Record Payment</Button>}
             {can('sales', 'create') && <Button icon={Plus} onClick={() => setNewOpen(true)}>New Sale</Button>}
           </>
         }
@@ -354,6 +409,7 @@ export default function Sales() {
       <SaleDialog open={newOpen} onClose={() => setNewOpen(false)} onSaved={refresh} />
       <SaleDetail saleId={openId} onClose={() => setOpenId(null)} onChanged={refresh} />
       <CollectDialog sale={collecting} onClose={() => setCollecting(null)} onDone={refresh} />
+      <RecordPaymentModal open={recordOpen} onClose={() => setRecordOpen(false)} onDone={refresh} />
       <ImportCollectionModal open={importOpen} onClose={() => setImportOpen(false)} onImported={refresh} />
     </div>
   );

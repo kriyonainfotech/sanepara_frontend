@@ -20,6 +20,7 @@ export default function SaleDialog({ open, onClose, onSaved, sale, preset }) {
   const editing = Boolean(sale?._id);
   const [customers, setCustomers] = useState([]);
   const [services, setServices] = useState([]); // customer's assigned services
+  const [allServices, setAllServices] = useState([]); // company master services
   const [gsts, setGsts] = useState([]); // customer's firms
   const [members, setMembers] = useState([]);
   const [partners, setPartners] = useState([]);
@@ -29,17 +30,18 @@ export default function SaleDialog({ open, onClose, onSaved, sale, preset }) {
   useEffect(() => {
     if (!open) return;
     api.get('/customers/options').then((r) => setCustomers(r.data.data));
+    api.get('/services', { params: { active: true } }).then((r) => setAllServices(r.data.services || [])).catch(() => setAllServices([]));
     api.get('/users', { params: { active: true } }).then((r) => setMembers(r.data.users));
     api.get('/b2b').then((r) => setPartners(r.data.data.filter((p) => p.isActive || p._id === (sale?.b2bPartner?._id || sale?.b2bPartner)))).catch(() => setPartners([]));
     setF(
       editing
         ? {
-            customer: sale.customer?._id || sale.customer, customerService: sale.customerService || '', gstNumber: sale.gstNumber || '', title: sale.title,
+            customer: sale.customer?._id || sale.customer, customerService: sale.customerService || '', service: sale.service?._id || sale.service || '', gstNumber: sale.gstNumber || '', title: sale.title,
             professionalFee: sale.professionalFee, govtFee: sale.govtFee, saleDate: sale.saleDate,
             soldBy: sale.soldBy?._id || sale.soldBy || '', b2bPartner: sale.b2bPartner?._id || sale.b2bPartner || '', b2bPercent: sale.b2bPercent ?? '', referredBy: sale.referredBy || '', referralAmount: sale.referralAmount || '', notes: sale.notes || '',
           }
         : {
-            customer: preset?.customer || '', customerService: preset?.customerService || '', gstNumber: preset?.gstNumber || '', title: preset?.title || '',
+            customer: preset?.customer || '', customerService: preset?.customerService || '', service: preset?.service || '', gstNumber: preset?.gstNumber || '', title: preset?.title || '',
             professionalFee: preset?.professionalFee ?? '', govtFee: '', saleDate: localToday(), soldBy: user._id,
             b2bPartner: '', b2bPercent: '', referredBy: '', referralAmount: '', notes: '', receivedNow: '', receivedMode: 'Cash', receivedBank: '',
           }
@@ -60,9 +62,30 @@ export default function SaleDialog({ open, onClose, onSaved, sale, preset }) {
   }, [open, f.customer]);
 
   const set = (k, v) => setF((x) => ({ ...x, [k]: v }));
-  const pickService = (id) => {
+  const pickAssignedService = (id) => {
     const s = services.find((x) => x._id === id);
-    setF((x) => ({ ...x, customerService: id, ...(s?.gstNumber && { gstNumber: s.gstNumber }), ...(s && !editing && { title: x.title || [s.service?.name, s.periodLabel].filter(Boolean).join(' · '), professionalFee: x.professionalFee || s.service?.price || '' }) }));
+    setF((x) => ({
+      ...x,
+      customerService: id,
+      service: s?.service?._id || '',
+      ...(s?.gstNumber && { gstNumber: s.gstNumber }),
+      ...(s && !editing && {
+        title: [s.service?.name, s.periodLabel].filter(Boolean).join(' · '),
+        professionalFee: s.service?.price || x.professionalFee || '',
+      }),
+    }));
+  };
+  const pickMasterService = (id) => {
+    const s = allServices.find((x) => x._id === id);
+    setF((x) => ({
+      ...x,
+      customerService: '',
+      service: id,
+      ...(!editing && s && {
+        title: s.name,
+        professionalFee: s.price || x.professionalFee || '',
+      }),
+    }));
   };
   const pickPartner = (id) => setF((x) => ({ ...x, b2bPartner: id, b2bPercent: partners.find((p) => p._id === id)?.percentage ?? '' }));
 
@@ -102,12 +125,40 @@ export default function SaleDialog({ open, onClose, onSaved, sale, preset }) {
                 onChange={(v) => setF((x) => ({ ...x, customer: v === 'all' ? '' : v, customerService: '', gstNumber: '' }))} allLabel="Select customer…" placeholder="Search customer..." />
             )}
           </Field>
-          <Field label="Assigned service" hint="Links the sale so the service shows as billed">
-            <Select value={f.customerService || ''} onChange={(e) => pickService(e.target.value)} disabled={!f.customer}>
-              <option value="">— Other work —</option>
-              {services.map((s) => (
-                <option key={s._id} value={s._id}>{s.service?.name}{s.periodLabel ? ` · ${s.periodLabel}` : ''}{s.firmName || s.gstNumber ? ` · ${s.firmName || s.gstNumber}` : ''}{s.billing ? ' (already billed)' : ''}</option>
-              ))}
+          <Field label="Service / Work" hint="Pick an assigned service, a company service, or choose 'Other work'">
+            <Select
+              value={f.customerService ? `cs:${f.customerService}` : f.service ? `s:${f.service}` : ''}
+              onChange={(e) => {
+                const val = e.target.value;
+                if (!val) {
+                  setF((x) => ({ ...x, customerService: '', service: '' }));
+                } else if (val.startsWith('cs:')) {
+                  pickAssignedService(val.slice(3));
+                } else if (val.startsWith('s:')) {
+                  pickMasterService(val.slice(2));
+                }
+              }}
+              disabled={!f.customer}
+            >
+              <option value="">— Other work / Custom —</option>
+              {services.length > 0 && (
+                <optgroup label="Customer's Assigned Services">
+                  {services.map((s) => (
+                    <option key={s._id} value={`cs:${s._id}`}>
+                      {s.service?.name}{s.periodLabel ? ` · ${s.periodLabel}` : ''}{s.firmName || s.gstNumber ? ` · ${s.firmName || s.gstNumber}` : ''}{s.billing ? ' (already billed)' : ''}
+                    </option>
+                  ))}
+                </optgroup>
+              )}
+              {allServices.length > 0 && (
+                <optgroup label="Company Services">
+                  {allServices.map((s) => (
+                    <option key={s._id} value={`s:${s._id}`}>
+                      {s.name} {s.price ? `(₹${s.price})` : ''}
+                    </option>
+                  ))}
+                </optgroup>
+              )}
             </Select>
           </Field>
         </div>

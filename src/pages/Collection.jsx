@@ -13,50 +13,8 @@ import Modal from '../components/ui/Modal';
 import Spinner from '../components/ui/Spinner';
 import { Field, Input, Textarea } from '../components/ui/Field';
 import CollectDialog from '../components/sales/CollectDialog';
+import RecordPaymentModal from '../components/sales/RecordPaymentModal';
 import ImportCollectionModal from '../components/sales/ImportCollectionModal';
-
-// Pick a sale that still has money pending, then record the payment on it.
-function PickSaleDialog({ open, onClose, onPick }) {
-  const [sales, setSales] = useState(null);
-  const [search, setSearch] = useState('');
-  useEffect(() => {
-    if (!open) return;
-    setSales(null); setSearch('');
-    api.get('/sales', { params: { status: 'open', from: '2000-01-01', to: localToday() } })
-      .then((r) => setSales(r.data.data))
-      .catch((err) => { toast.error(errorMessage(err)); setSales([]); });
-  }, [open]);
-
-  const q = search.trim().toLowerCase();
-  const list = (sales || []).filter((s) => !q || [s.saleNo, s.title, s.customer?.businessName, s.customer?.phone].some((v) => v?.toLowerCase().includes(q)));
-
-  return (
-    <Modal open={open} onClose={onClose} size="lg" scroll title="Record Payment" description="Choose the sale this payment is for.">
-      <div className="relative mb-3">
-        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
-        <Input autoFocus value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search customer, mobile, work, sale no…" className="pl-9" />
-      </div>
-      {!sales ? <Spinner /> : list.length === 0 ? (
-        <p className="py-10 text-center text-sm text-zinc-400">{sales.length ? 'No matching sale.' : 'No pending payments.'}</p>
-      ) : (
-        <div className="divide-y divide-zinc-100 rounded-xl border border-zinc-200">
-          {list.map((s) => (
-            <button key={s._id} onClick={() => onPick(s)} className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left hover:bg-zinc-50">
-              <div className="min-w-0">
-                <div className="truncate text-sm font-medium">{s.customer?.businessName || '—'}</div>
-                <div className="truncate text-xs text-zinc-500">{s.saleNo} · {s.title} · {shortDay(s.saleDate)}</div>
-              </div>
-              <div className="shrink-0 text-right tabular-nums">
-                <div className="text-sm font-semibold text-rose-600">{formatMoney(s.balance)}</div>
-                <div className="text-[11px] text-zinc-400">of {formatMoney(s.totalAmount)}</div>
-              </div>
-            </button>
-          ))}
-        </div>
-      )}
-    </Modal>
-  );
-}
 
 function SettingsDialog({ open, settings, onClose, onSaved }) {
   const [heads, setHeads] = useState([]);
@@ -423,8 +381,7 @@ export default function Collection() {
       )}
       <SettingsDialog open={settingsOpen} settings={data?.settings} onClose={() => setSettingsOpen(false)} onSaved={load} />
       <GoalsDialog open={goalsOpen} month={month} goals={data?.goals || {}} onClose={() => setGoalsOpen(false)} onSaved={load} />
-      <PickSaleDialog open={picking} onClose={() => setPicking(false)} onPick={(s) => { setPicking(false); setCollectSale(s); }} />
-      <CollectDialog sale={collectSale} onClose={() => setCollectSale(null)} onDone={load} />
+      <RecordPaymentModal open={picking} onClose={() => setPicking(false)} onDone={load} />
       <DayPaymentsDialog date={dayOpen} onClose={closeDay} />
       <ImportCollectionModal open={importOpen} onClose={() => setImportOpen(false)} onImported={load} />
     </div>
